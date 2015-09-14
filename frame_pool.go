@@ -32,7 +32,7 @@ type FramePool interface {
 }
 
 // DefaultFramePool is the disabled frame pool which uses the heap.
-var DefaultFramePool = DisabledFramePool
+var DefaultFramePool = NewSyncFramePool()
 
 // DisabledFramePool is a pool that uses the heap and relies on GC.
 var DisabledFramePool = disabledFramePool{}
