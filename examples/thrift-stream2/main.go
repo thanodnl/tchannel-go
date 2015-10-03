@@ -9,9 +9,9 @@ import (
 	"os"
 	"time"
 
-	"github.com/uber/tchannel/golang"
-	"github.com/uber/tchannel/golang/examples/thrift-stream2/gen-go/stream"
-	"github.com/uber/tchannel/golang/thrift"
+	"github.com/uber/tchannel-go"
+	"github.com/uber/tchannel-go/examples/thrift-stream2/gen-go/stream"
+	"github.com/uber/tchannel-go/thrift"
 )
 
 var (

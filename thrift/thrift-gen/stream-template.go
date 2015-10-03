@@ -30,8 +30,8 @@ import (
   "io"
 
   athrift "github.com/apache/thrift/lib/go/thrift"
-  "github.com/uber/tchannel/golang"
-  "github.com/uber/tchannel/golang/thrift"
+  "github.com/uber/tchannel-go"
+  "github.com/uber/tchannel-go/thrift"
 )
 
 {{ range .Services }}

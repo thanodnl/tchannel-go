@@ -24,7 +24,7 @@ import (
 	"io"
 
 	"github.com/apache/thrift/lib/go/thrift"
-	"github.com/uber/tchannel/golang"
+	"github.com/uber/tchannel-go"
 )
 
 // This file defines interfaces that are used or exposed by thrift-gen generated code.
