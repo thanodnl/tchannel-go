@@ -76,10 +76,15 @@ func wrapServices(v *parser.Thrift) ([]*Service, error) {
 }
 
 func makeService(service *parser.Service, state *State) *Service {
+	wrapped := &Service{
+		Service: service,
+		state:   state,
+	}
+
 	var methods []*Method
 	var streamingMethods []*Method
 	for _, m := range service.Methods {
-		m := &Method{m, state}
+		m := &Method{m, wrapped, state}
 		if m.Streaming() {
 			streamingMethods = append(streamingMethods, m)
 		} else {
@@ -89,7 +94,9 @@ func makeService(service *parser.Service, state *State) *Service {
 	sort.Sort(byMethodName(methods))
 	sort.Sort(byMethodName(streamingMethods))
 
-	return &Service{service, nil, state, methods, streamingMethods}
+	wrapped.methods = methods
+	wrapped.streamingMethods = streamingMethods
+	return wrapped
 }
 
 // Service is a wrapper for parser.Service.
