@@ -19,16 +19,28 @@ type tchanTestStreamClient struct {
 	client thrift.TChanClient
 }
 
+func newTChanTestStreamClient(client thrift.TChanClient) *tchanTestStreamClient {
+	return &tchanTestStreamClient{
+		client,
+	}
+}
+
 func NewTChanTestStreamClient(client thrift.TChanClient) TChanTestStream {
-	return &tchanTestStreamClient{client: client}
+	return newTChanTestStreamClient(client)
 }
 
 type tchanTestStreamServer struct {
 	handler TChanTestStream
 }
 
+func newTChanTestStreamServer(handler TChanTestStream) *tchanTestStreamServer {
+	return &tchanTestStreamServer{
+		handler,
+	}
+}
+
 func NewTChanTestStreamServer(handler TChanTestStream) thrift.TChanServer {
-	return &tchanTestStreamServer{handler}
+	return newTChanTestStreamServer(handler)
 }
 
 func (s *tchanTestStreamServer) Service() string {

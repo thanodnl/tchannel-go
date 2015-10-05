@@ -83,6 +83,8 @@ examples: clean setup thrift_example
 	go build -o $(BUILD)/examples/bench/client ./examples/bench/client
 	go build -o $(BUILD)/examples/bench/runner ./examples/bench/runner.go
 	go build -o $(BUILD)/examples/test_server ./examples/test_server
+	go build -o $(BUILD)/examples/thrift-stream1 ./examples/thrift-stream1
+	go build -o $(BUILD)/examples/thrift-stream2 ./examples/thrift-stream2
 
 thrift_gen:
 	go build -o $(BUILD)/thrift-gen ./thrift/thrift-gen

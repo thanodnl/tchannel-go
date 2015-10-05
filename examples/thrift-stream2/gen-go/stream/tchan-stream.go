@@ -19,16 +19,28 @@ type tchanUniqCClient struct {
 	client thrift.TChanClient
 }
 
+func newTChanUniqCClient(client thrift.TChanClient) *tchanUniqCClient {
+	return &tchanUniqCClient{
+		client,
+	}
+}
+
 func NewTChanUniqCClient(client thrift.TChanClient) TChanUniqC {
-	return &tchanUniqCClient{client: client}
+	return newTChanUniqCClient(client)
 }
 
 type tchanUniqCServer struct {
 	handler TChanUniqC
 }
 
+func newTChanUniqCServer(handler TChanUniqC) *tchanUniqCServer {
+	return &tchanUniqCServer{
+		handler,
+	}
+}
+
 func NewTChanUniqCServer(handler TChanUniqC) thrift.TChanServer {
-	return &tchanUniqCServer{handler}
+	return newTChanUniqCServer(handler)
 }
 
 func (s *tchanUniqCServer) Service() string {
