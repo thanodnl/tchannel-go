@@ -69,6 +69,15 @@ func main() {
 	}
 }
 
+func hasStreamingMethods(services []*Service) bool {
+	for _, s := range services {
+		if len(s.StreamingMethods()) > 0 {
+			return true
+		}
+	}
+	return false
+}
+
 func processFile(generateThrift bool, inputFile string, outputFile string, outputStreamFile string) error {
 	if generateThrift {
 		if outFile, err := runThrift(inputFile, *apacheThriftImport); err != nil {
@@ -98,7 +107,7 @@ func processFile(generateThrift bool, inputFile string, outputFile string, outpu
 		}
 
 		// If streaming is enabled, generated the stream client.
-		if outputStreamFile != "" {
+		if hasStreamingMethods(wrappedServices) && outputStreamFile != "" {
 			if err := generateCode(outputStreamFile, serviceStreamTmpl, packageName(filename), wrappedServices); err != nil {
 				return err
 			}
