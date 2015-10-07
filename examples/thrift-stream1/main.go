@@ -79,7 +79,7 @@ func runClient(hostPort string) error {
 
 type handler struct{}
 
-func (handler) BothStream(ctx thrift.Context, call *stream.BothStreamInCall) error {
+func (handler) BothStream(ctx thrift.Context, call *stream.TestStreamBothStreamInCall) error {
 	counter := 0
 
 	for {
