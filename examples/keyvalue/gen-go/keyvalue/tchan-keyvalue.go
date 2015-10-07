@@ -11,16 +11,14 @@ import (
 // Interfaces for the service and client for the services defined in the IDL.
 
 type TChanAdmin interface {
-	TChanBaseService
-
 	ClearAll(ctx thrift.Context) error
+	HealthCheck(ctx thrift.Context) (string, error)
 }
 
 type TChanKeyValue interface {
-	TChanBaseService
-
 	Get(ctx thrift.Context, key string) (string, error)
 	Set(ctx thrift.Context, key string, value string) error
+	HealthCheck(ctx thrift.Context) (string, error)
 }
 
 type TChanBaseService interface {
@@ -30,15 +28,12 @@ type TChanBaseService interface {
 // Implementation of a client and service handler.
 
 type tchanAdminClient struct {
-	tchanBaseServiceClient
-
 	thriftService string
 	client        thrift.TChanClient
 }
 
 func newTChanAdminClient(thriftService string, client thrift.TChanClient) *tchanAdminClient {
 	return &tchanAdminClient{
-		*newTChanBaseServiceClient(thriftService, client),
 		thriftService,
 		client,
 	}
@@ -61,15 +56,22 @@ func (c *tchanAdminClient) ClearAll(ctx thrift.Context) error {
 	return err
 }
 
-type tchanAdminServer struct {
-	tchanBaseServiceServer
+func (c *tchanAdminClient) HealthCheck(ctx thrift.Context) (string, error) {
+	var resp AdminHealthCheckResult
+	args := AdminHealthCheckArgs{}
+	success, err := c.client.Call(ctx, c.thriftService, "HealthCheck", &args, &resp)
+	if err == nil && !success {
+	}
 
+	return resp.GetSuccess(), err
+}
+
+type tchanAdminServer struct {
 	handler TChanAdmin
 }
 
 func newTChanAdminServer(handler TChanAdmin) *tchanAdminServer {
 	return &tchanAdminServer{
-		*newTChanBaseServiceServer(handler),
 		handler,
 	}
 }
@@ -85,7 +87,6 @@ func (s *tchanAdminServer) Service() string {
 func (s *tchanAdminServer) Methods() []string {
 	return []string{
 		"clearAll",
-
 		"HealthCheck",
 	}
 }
@@ -94,7 +95,6 @@ func (s *tchanAdminServer) Handle(ctx thrift.Context, methodName string, protoco
 	switch methodName {
 	case "clearAll":
 		return s.handleClearAll(ctx, protocol)
-
 	case "HealthCheck":
 		return s.handleHealthCheck(ctx, protocol)
 
@@ -127,16 +127,33 @@ func (s *tchanAdminServer) handleClearAll(ctx thrift.Context, protocol athrift.T
 	return err == nil, &res, nil
 }
 
-type tchanKeyValueClient struct {
-	tchanBaseServiceClient
+func (s *tchanAdminServer) handleHealthCheck(ctx thrift.Context, protocol athrift.TProtocol) (bool, athrift.TStruct, error) {
+	var req AdminHealthCheckArgs
+	var res AdminHealthCheckResult
 
+	if err := req.Read(protocol); err != nil {
+		return false, nil, err
+	}
+
+	r, err :=
+		s.handler.HealthCheck(ctx)
+
+	if err != nil {
+		return false, nil, err
+	} else {
+		res.Success = &r
+	}
+
+	return err == nil, &res, nil
+}
+
+type tchanKeyValueClient struct {
 	thriftService string
 	client        thrift.TChanClient
 }
 
 func newTChanKeyValueClient(thriftService string, client thrift.TChanClient) *tchanKeyValueClient {
 	return &tchanKeyValueClient{
-		*newTChanBaseServiceClient(thriftService, client),
 		thriftService,
 		client,
 	}
@@ -180,15 +197,22 @@ func (c *tchanKeyValueClient) Set(ctx thrift.Context, key string, value string) 
 	return err
 }
 
-type tchanKeyValueServer struct {
-	tchanBaseServiceServer
+func (c *tchanKeyValueClient) HealthCheck(ctx thrift.Context) (string, error) {
+	var resp KeyValueHealthCheckResult
+	args := KeyValueHealthCheckArgs{}
+	success, err := c.client.Call(ctx, c.thriftService, "HealthCheck", &args, &resp)
+	if err == nil && !success {
+	}
 
+	return resp.GetSuccess(), err
+}
+
+type tchanKeyValueServer struct {
 	handler TChanKeyValue
 }
 
 func newTChanKeyValueServer(handler TChanKeyValue) *tchanKeyValueServer {
 	return &tchanKeyValueServer{
-		*newTChanBaseServiceServer(handler),
 		handler,
 	}
 }
@@ -205,7 +229,6 @@ func (s *tchanKeyValueServer) Methods() []string {
 	return []string{
 		"Get",
 		"Set",
-
 		"HealthCheck",
 	}
 }
@@ -216,7 +239,6 @@ func (s *tchanKeyValueServer) Handle(ctx thrift.Context, methodName string, prot
 		return s.handleGet(ctx, protocol)
 	case "Set":
 		return s.handleSet(ctx, protocol)
-
 	case "HealthCheck":
 		return s.handleHealthCheck(ctx, protocol)
 
@@ -271,6 +293,26 @@ func (s *tchanKeyValueServer) handleSet(ctx thrift.Context, protocol athrift.TPr
 			return false, nil, err
 		}
 	} else {
+	}
+
+	return err == nil, &res, nil
+}
+
+func (s *tchanKeyValueServer) handleHealthCheck(ctx thrift.Context, protocol athrift.TProtocol) (bool, athrift.TStruct, error) {
+	var req KeyValueHealthCheckArgs
+	var res KeyValueHealthCheckResult
+
+	if err := req.Read(protocol); err != nil {
+		return false, nil, err
+	}
+
+	r, err :=
+		s.handler.HealthCheck(ctx)
+
+	if err != nil {
+		return false, nil, err
+	} else {
+		res.Success = &r
 	}
 
 	return err == nil, &res, nil

@@ -15,11 +15,10 @@ type TChanBase interface {
 }
 
 type TChanFirst interface {
-	TChanBase
-
 	AppError(ctx thrift.Context) error
 	Echo(ctx thrift.Context, msg string) (string, error)
 	Healthcheck(ctx thrift.Context) (*HealthCheckRes, error)
+	BaseCall(ctx thrift.Context) error
 }
 
 type TChanSecond interface {
@@ -108,15 +107,12 @@ func (s *tchanBaseServer) handleBaseCall(ctx thrift.Context, protocol athrift.TP
 }
 
 type tchanFirstClient struct {
-	tchanBaseClient
-
 	thriftService string
 	client        thrift.TChanClient
 }
 
 func newTChanFirstClient(thriftService string, client thrift.TChanClient) *tchanFirstClient {
 	return &tchanFirstClient{
-		*newTChanBaseClient(thriftService, client),
 		thriftService,
 		client,
 	}
@@ -158,15 +154,22 @@ func (c *tchanFirstClient) Healthcheck(ctx thrift.Context) (*HealthCheckRes, err
 	return resp.GetSuccess(), err
 }
 
-type tchanFirstServer struct {
-	tchanBaseServer
+func (c *tchanFirstClient) BaseCall(ctx thrift.Context) error {
+	var resp FirstBaseCallResult
+	args := FirstBaseCallArgs{}
+	success, err := c.client.Call(ctx, c.thriftService, "BaseCall", &args, &resp)
+	if err == nil && !success {
+	}
 
+	return err
+}
+
+type tchanFirstServer struct {
 	handler TChanFirst
 }
 
 func newTChanFirstServer(handler TChanFirst) *tchanFirstServer {
 	return &tchanFirstServer{
-		*newTChanBaseServer(handler),
 		handler,
 	}
 }
@@ -184,7 +187,6 @@ func (s *tchanFirstServer) Methods() []string {
 		"AppError",
 		"Echo",
 		"Healthcheck",
-
 		"BaseCall",
 	}
 }
@@ -197,7 +199,6 @@ func (s *tchanFirstServer) Handle(ctx thrift.Context, methodName string, protoco
 		return s.handleEcho(ctx, protocol)
 	case "Healthcheck":
 		return s.handleHealthcheck(ctx, protocol)
-
 	case "BaseCall":
 		return s.handleBaseCall(ctx, protocol)
 
@@ -260,6 +261,25 @@ func (s *tchanFirstServer) handleHealthcheck(ctx thrift.Context, protocol athrif
 		return false, nil, err
 	} else {
 		res.Success = r
+	}
+
+	return err == nil, &res, nil
+}
+
+func (s *tchanFirstServer) handleBaseCall(ctx thrift.Context, protocol athrift.TProtocol) (bool, athrift.TStruct, error) {
+	var req FirstBaseCallArgs
+	var res FirstBaseCallResult
+
+	if err := req.Read(protocol); err != nil {
+		return false, nil, err
+	}
+
+	err :=
+		s.handler.BaseCall(ctx)
+
+	if err != nil {
+		return false, nil, err
+	} else {
 	}
 
 	return err == nil, &res, nil

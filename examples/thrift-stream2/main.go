@@ -60,7 +60,7 @@ func runClient(hostPort string) error {
 	ch.Peers().Add(hostPort)
 
 	tClient := thrift.NewClient(ch, "uniq", nil)
-	client := stream.NewSTChanUniqCClient(tClient)
+	client := stream.NewSTChanUniqC2Client(tClient)
 
 	ctx, cancel := thrift.NewContext(1000 * time.Second)
 	defer cancel()
@@ -106,7 +106,7 @@ func runClient(hostPort string) error {
 
 type handler struct{}
 
-func (handler) Run(ctx thrift.Context, call *stream.RunInCall) error {
+func (handler) Run(ctx thrift.Context, call *stream.UniqCRunInCall) error {
 	var lastStr string
 	counter := int32(0)
 	for {
