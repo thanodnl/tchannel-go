@@ -112,12 +112,12 @@ func (m *Method) StreamingCallList(reqStruct string, callName string) string {
 
 // InCallName is the name of the call object for inbound calls.
 func (m *Method) InCallName() string {
-	return m.Name() + "InCall"
+	return m.argResPrefix() + "InCall"
 }
 
 // OutCallName is the name of the call object for outbound calls.
 func (m *Method) OutCallName() string {
-	return m.Name() + "OutCall"
+	return m.argResPrefix() + "OutCall"
 }
 
 // StreamingServerHasResult returns whether the server interface has a result in the return

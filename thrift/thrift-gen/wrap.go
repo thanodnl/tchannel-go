@@ -72,6 +72,24 @@ func wrapServices(v *parser.Thrift) ([]*Service, error) {
 		return nil, err
 	}
 
+	// This is a hack for streaming to just duplicate methods.
+	for _, s := range services {
+		if s.HasExtends() {
+			for _, m := range s.ExtendsService.StreamingMethods() {
+				newM := *m
+				newM.service = s
+				s.streamingMethods = append(s.streamingMethods, &newM)
+			}
+			for _, m := range s.ExtendsService.Methods() {
+				newM := *m
+				newM.service = s
+				s.methods = append(s.methods, &newM)
+			}
+			s.ExtendsService = nil
+			s.Extends = ""
+		}
+	}
+
 	return services, nil
 }
 
