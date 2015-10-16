@@ -39,23 +39,23 @@ import (
 	"github.com/samuel/go-thrift/parser"
 )
 
-const tchannelThriftImport = "github.com/uber/tchannel-go/thrift"
+const tchannelThriftImport = "github.com/uber/tchannel-go"
 
 var (
 	generateThrift     = flag.Bool("generateThrift", false, "Whether to generate all Thrift go code")
 	apacheThriftImport = flag.String("thriftImport", "github.com/apache/thrift/lib/go/thrift", "Go package to use for the Thrift import")
 	inputFile          = flag.String("inputFile", "", "The .thrift file to generate a client for")
 	outputFile         = flag.String("outputFile", "", "The output file to generate go code to")
-	streamOutputFile   = flag.String("streamOutputFile", "", "The output file to generate streaming code to")
 	nlSpaceNL          = regexp.MustCompile(`\n[ \t]+\n`)
 )
 
 // TemplateData is the data passed to the template that generates code.
 type TemplateData struct {
-	Package        string
-	Services       []*Service
-	ThriftImport   string
-	TChannelImport string
+	Package              string
+	Services             []*Service
+	ThriftImport         string
+	TChannelImport       string
+	TChannelThriftImport string
 }
 
 func main() {
@@ -64,7 +64,7 @@ func main() {
 		log.Fatalf("Please specify an inputFile")
 	}
 
-	if err := processFile(*generateThrift, *inputFile, *outputFile, *streamOutputFile); err != nil {
+	if err := processFile(*generateThrift, *inputFile, *outputFile); err != nil {
 		log.Fatal(err)
 	}
 }
@@ -78,13 +78,12 @@ func hasStreamingMethods(services []*Service) bool {
 	return false
 }
 
-func processFile(generateThrift bool, inputFile string, outputFile string, outputStreamFile string) error {
+func processFile(generateThrift bool, inputFile string, outputFile string) error {
 	if generateThrift {
 		if outFile, err := runThrift(inputFile, *apacheThriftImport); err != nil {
 			return fmt.Errorf("Could not generate thrift output: %v", err)
 		} else if outputFile == "" {
 			outputFile = outFile + ".go"
-			outputStreamFile = outFile + "-stream.go"
 		}
 	}
 
@@ -95,7 +94,6 @@ func processFile(generateThrift bool, inputFile string, outputFile string, outpu
 	}
 
 	serviceTmpl := parseTemplate(serviceTmpl)
-	serviceStreamTmpl := parseTemplate(serviceStreamTmpl)
 	for filename, v := range parsed {
 		wrappedServices, err := wrapServices(v)
 		if err != nil {
@@ -104,13 +102,6 @@ func processFile(generateThrift bool, inputFile string, outputFile string, outpu
 
 		if err := generateCode(outputFile, serviceTmpl, packageName(filename), wrappedServices); err != nil {
 			return err
-		}
-
-		// If streaming is enabled, generated the stream client.
-		if hasStreamingMethods(wrappedServices) && outputStreamFile != "" {
-			if err := generateCode(outputStreamFile, serviceStreamTmpl, packageName(filename), wrappedServices); err != nil {
-				return err
-			}
 		}
 
 		// TODO(prashant): Support multiple files / includes etc?
@@ -131,10 +122,11 @@ func generateCode(outputFile string, tmpl *template.Template, pkg string, servic
 	buf := &bytes.Buffer{}
 
 	td := TemplateData{
-		Package:        pkg,
-		Services:       services,
-		ThriftImport:   *apacheThriftImport,
-		TChannelImport: tchannelThriftImport,
+		Package:              pkg,
+		Services:             services,
+		ThriftImport:         *apacheThriftImport,
+		TChannelImport:       tchannelThriftImport,
+		TChannelThriftImport: tchannelThriftImport + "/thrift",
 	}
 	if err := tmpl.Execute(buf, td); err != nil {
 		return fmt.Errorf("failed to execute template: %v", err)

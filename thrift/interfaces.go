@@ -37,18 +37,13 @@ type TChanClient interface {
 	Call(ctx Context, serviceName, methodName string, req, resp thrift.TStruct) (success bool, err error)
 }
 
-// TChanBaseServer is the common interface between a normal server and a streaming server.
-type TChanBaseServer interface {
+// TChanServer abstracts handling of an RPC that is implemented by the generated server code.
+type TChanServer interface {
 	// Service returns the service name.
 	Service() string
 
 	// Methods returns the method names handled by this server.
 	Methods() []string
-}
-
-// TChanServer abstracts handling of an RPC that is implemented by the generated server code.
-type TChanServer interface {
-	TChanBaseServer
 
 	// Handle should read the request from the given reqReader, and return the response struct.
 	// The arguments returned are success, result struct, unexpected error
@@ -57,24 +52,24 @@ type TChanServer interface {
 
 // TChanStreamingServer abstracts handling of an RPC that is implemented by the generated code.
 type TChanStreamingServer interface {
-	TChanBaseServer
+	TChanServer
+
+	// StreamingMethods returns the method names handled by this server.
+	StreamingMethods() []string
 
 	// Handle handles a call (arg2 and arg3 whould already be read??)
-	Handle(ctx Context, call *tchannel.InboundCall) error
+	HandleStreaming(ctx Context, call *tchannel.InboundCall) error
+
+	// SetCommon sets the TCommon to use for reading/writing structs.
+	SetCommon(common TCommon)
 }
 
-// TChanStreamingClient is abstracts calling Thrift endpoints which require streaming.
-type TChanStreamingClient interface {
-	// StartCall starts starts the call to the given endpoint, and returns
-	StartCall(ctx Context, name string) (*tchannel.OutboundCall, tchannel.ArgWriter, error)
-
-	// TODO(prashant): Move all methods below this out of this interface.
-
-	WriteHeaders(writer io.Writer, headers map[string]string) error
-	ReadHeaders(r io.Reader) (map[string]string, error)
-
+// TCommon abstracts Thrift functionality like writing/reading structs and headers.
+type TCommon interface {
 	// WriteStreamStruct writes the given struct as a streaming struct (e.g. length prefixed).
 	WriteStreamStruct(writer io.Writer, s thrift.TStruct) error
+
+	// ReadStreamStruct reads a streaming struct (e.g. length prefixed struct).
 	ReadStreamStruct(reader io.Reader, f func(protocol thrift.TProtocol) error) error
 
 	// ReadStruct is used to read a single non-streaming Thrift struct.
@@ -82,4 +77,19 @@ type TChanStreamingClient interface {
 
 	// WriteStruct is used to write a single non-streaming Thrift struct.
 	WriteStruct(writer tchannel.ArgWriter, s thrift.TStruct) error
+
+	// WriteHeaders writes the given headers to the writer.
+	WriteHeaders(writer io.Writer, headers map[string]string) error
+
+	// ReadHeaders readers headers from the given reader.
+	ReadHeaders(r io.Reader) (map[string]string, error)
+}
+
+// TChanStreamingClient is abstracts calling Thrift endpoints which require streaming.
+type TChanStreamingClient interface {
+	TCommon
+	TChanClient
+
+	// StartCall starts starts the call to the given endpoint, and returns
+	StartCall(ctx Context, name string) (*tchannel.OutboundCall, tchannel.ArgWriter, error)
 }

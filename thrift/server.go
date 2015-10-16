@@ -39,6 +39,8 @@ type handler struct {
 
 // Server handles incoming TChannel calls and forwards them to the matching TChanServer.
 type Server struct {
+	tcommon
+
 	Channel       tchannel.Registrar
 	log           tchannel.Logger
 	mut           sync.RWMutex
@@ -60,7 +62,7 @@ func NewServer(registrar tchannel.Registrar) *Server {
 	return server
 }
 
-func (s *Server) registerHandler(ts TChanBaseServer, h handler, opts ...RegisterOption) {
+func (s *Server) registerHandler(ts TChanServer, h handler, opts ...RegisterOption) {
 	serviceName := ts.Service()
 	for _, opt := range opts {
 		opt.Apply(&h)
@@ -73,10 +75,18 @@ func (s *Server) registerHandler(ts TChanBaseServer, h handler, opts ...Register
 	for _, m := range ts.Methods() {
 		s.Channel.Register(s, serviceName+"::"+m)
 	}
+
+	if sts, ok := ts.(TChanStreamingServer); ok {
+		if len(sts.StreamingMethods()) > 0 && h.streaming == nil {
+			panic("Using Register when you should use RegisterStreaming")
+		}
+		for _, m := range sts.StreamingMethods() {
+			s.Channel.Register(tchannel.HandlerFunc(s.HandleStreaming), serviceName+"::"+m)
+		}
+	}
 }
 
 // Register registers the given TChanServer to be called on any incoming call for its' services.
-// TODO(prashant): Replace Register call with this call.
 func (s *Server) Register(svr TChanServer, opts ...RegisterOption) {
 	s.registerHandler(svr, handler{standard: svr}, opts...)
 }
@@ -84,7 +94,8 @@ func (s *Server) Register(svr TChanServer, opts ...RegisterOption) {
 // RegisterStreaming registers the given TChanStreamingServer to be called on any incoming call
 // for its' services.
 func (s *Server) RegisterStreaming(svr TChanStreamingServer, opts ...RegisterOption) {
-	s.registerHandler(svr, handler{streaming: svr}, opts...)
+	svr.SetCommon(s.tcommon)
+	s.registerHandler(svr, handler{standard: svr, streaming: svr}, opts...)
 }
 
 // RegisterHealthHandler uses the user-specified function f for the Health endpoint.
@@ -169,26 +180,26 @@ func (s *Server) handleStandard(origCtx context.Context, handler handler, method
 //   written = true
 // }
 
-//.ThriftWriter is the interface for writing multiple Thrift structs.
-type ThriftWriter interface {
+// StreamWriter is the interface for writing multiple Thrift structs.
+type StreamWriter interface {
 	Flush() error
 	Write(resp thrift.TStruct) error
 	Close(err error) error
 }
 
-type thriftWriter struct {
+type streamWriter struct {
 	call        *tchannel.InboundCall
 	protocol    thrift.TProtocol
 	arg2Written bool
 }
 
-func (w *thriftWriter) sendArg2() error {
+func (w *streamWriter) sendArg2() error {
 
 	w.arg2Written = true
 	return nil
 }
 
-func (w *thriftWriter) Flush() error {
+func (w *streamWriter) Flush() error {
 	if !w.arg2Written {
 		if err := w.sendArg2(); err != nil {
 			return err
@@ -198,7 +209,7 @@ func (w *thriftWriter) Flush() error {
 	return w.Flush()
 }
 
-func (w *thriftWriter) Write(resp thrift.TStruct) error {
+func (w *streamWriter) Write(resp thrift.TStruct) error {
 	if !w.arg2Written {
 		if err := w.sendArg2(); err != nil {
 			return err
@@ -213,7 +224,7 @@ func (w *thriftWriter) Write(resp thrift.TStruct) error {
 	return nil
 }
 
-func (w *thriftWriter) Close(err error) error {
+func (w *streamWriter) Close(err error) error {
 	if err != nil && w.arg2Written {
 		// All errors must be sent by now
 		return fmt.Errorf("errors must be sent before any stream results")
@@ -258,6 +269,7 @@ func (s *Server) Handle(ctx context.Context, call *tchannel.InboundCall) {
 		log.Fatalf("Handle got call for service %v which is not registered", service)
 	}
 
+	// TODO(prashant): Logic for reading headers should not be duplicated.
 	if handler.standard != nil {
 		if err := s.handleStandard(ctx, handler, method, call); err != nil {
 			s.onError(err)
@@ -276,6 +288,36 @@ func (s *Server) Handle(ctx context.Context, call *tchannel.InboundCall) {
 		}
 		ctx := WithHeaders(ctx, headers)
 		// TODO(prashant): Call post-response callback for each response write?
-		handler.streaming.Handle(ctx, call)
+		handler.streaming.HandleStreaming(ctx, call)
 	}
+}
+
+func (s *Server) HandleStreaming(ctx context.Context, call *tchannel.InboundCall) {
+	parts := strings.Split(string(call.Operation()), "::")
+	if len(parts) != 2 {
+		log.Fatalf("Handle got call for %v which does not match the expected call format", parts)
+	}
+
+	service := parts[0]
+	s.mut.RLock()
+	handler, ok := s.handlers[service]
+	s.mut.RUnlock()
+	if !ok {
+		log.Fatalf("Handle got call for service %v which is not registered", service)
+	}
+
+	reader, err := call.Arg2Reader()
+	if err != nil {
+		log.Fatal(err)
+	}
+	headers, err := readHeaders(reader)
+	if err != nil {
+		log.Fatal(err)
+	}
+	if err := reader.Close(); err != nil {
+		log.Fatal(err)
+	}
+	tctx := WithHeaders(ctx, headers)
+	// TODO(prashant): Call post-response callback for each response write?
+	handler.streaming.HandleStreaming(tctx, call)
 }

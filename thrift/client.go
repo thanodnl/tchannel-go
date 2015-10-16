@@ -21,15 +21,14 @@
 package thrift
 
 import (
-	"encoding/binary"
-	"io"
-
 	"github.com/apache/thrift/lib/go/thrift"
 	"github.com/uber/tchannel-go"
 )
 
-// client implements TChanClient and makes outgoing Thrift calls.
+// client implements TChanStreamingClient and makes outgoing Thrift calls.
 type client struct {
+	tcommon
+
 	sc          *tchannel.SubChannel
 	serviceName string
 	opts        ClientOptions
@@ -76,68 +75,6 @@ func (c *client) StartCall(ctx Context, fullMethod string) (*tchannel.OutboundCa
 	}
 
 	return call, writer, nil
-}
-
-func (c *client) WriteStruct(writer tchannel.ArgWriter, s thrift.TStruct) error {
-	protocol := thrift.NewTBinaryProtocolTransport(&readWriterTransport{Writer: writer})
-	if err := s.Write(protocol); err != nil {
-		return err
-	}
-
-	return writer.Close()
-}
-
-func (c *client) WriteStreamStruct(writer io.Writer, s thrift.TStruct) error {
-	transport := thrift.NewTMemoryBuffer()
-	transport.Buffer.Reset()
-
-	protocol := thrift.NewTBinaryProtocol(transport, false, false)
-	if err := s.Write(protocol); err != nil {
-		return err
-	}
-
-	// First write out the length prefix.
-	numBuf := make([]byte, 4)
-	binary.BigEndian.PutUint32(numBuf, uint32(transport.Len()))
-
-	if _, err := writer.Write(numBuf); err != nil {
-		return err
-	}
-
-	if _, err := io.Copy(writer, transport); err != nil {
-		return err
-	}
-
-	return nil
-}
-
-func (c *client) ReadStruct(reader io.ReadCloser, f func(protocol thrift.TProtocol) error) error {
-	protocol := thrift.NewTBinaryProtocolTransport(&readWriterTransport{Reader: reader})
-	if err := f(protocol); err != nil {
-		return err
-	}
-
-	return reader.Close()
-}
-
-func (c *client) ReadStreamStruct(reader io.Reader, f func(protocol thrift.TProtocol) error) error {
-	buf := make([]byte, 4)
-	if _, err := io.ReadFull(reader, buf); err != nil {
-		return err
-	}
-
-	length := binary.BigEndian.Uint32(buf)
-	l := io.LimitReader(reader, int64(length))
-	protocol := thrift.NewTBinaryProtocol(thrift.NewStreamTransportR(l), false, false)
-	return f(protocol)
-}
-
-func (c *client) WriteHeaders(writer io.Writer, headers map[string]string) error {
-	return writeHeaders(writer, headers)
-}
-
-func (c *client) ReadHeaders(r io.Reader) (map[string]string, error) {
-	return readHeaders(r)
 }
 
 func (c *client) Call(ctx Context, thriftService, methodName string, req, resp thrift.TStruct) (bool, error) {

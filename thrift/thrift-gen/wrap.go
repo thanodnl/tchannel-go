@@ -163,7 +163,7 @@ func (l byMethodName) Len() int           { return len(l) }
 func (l byMethodName) Less(i, j int) bool { return l[i].Method.Name < l[j].Method.Name }
 func (l byMethodName) Swap(i, j int)      { l[i], l[j] = l[j], l[i] }
 
-// Methods returns the methods defined on this service.
+// Methods returns the non-streaming methods defined on this service.
 func (s *Service) Methods() []*Method {
 	return s.methods
 }
@@ -171,6 +171,14 @@ func (s *Service) Methods() []*Method {
 // StreamingMethods returns the streaming methods defined on this service.
 func (s *Service) StreamingMethods() []*Method {
 	return s.streamingMethods
+}
+
+// AllMethods returns the normal and streaming methods defined on this service.
+func (s *Service) AllMethods() []*Method {
+	var allMethods []*Method
+	allMethods = append(allMethods, s.methods...)
+	allMethods = append(allMethods, s.streamingMethods...)
+	return allMethods
 }
 
 // Method is a wrapper for parser.Method.

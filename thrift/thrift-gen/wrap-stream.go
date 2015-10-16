@@ -37,21 +37,6 @@ func (s *Service) ClientInterface() string {
 	return s.Interface() + "Client"
 }
 
-// StreamingServerStruct returns the name of the struct that implements ServerInterface.
-func (s *Service) StreamingServerStruct() string {
-	return "tchan" + goPublicName(s.Name) + "StreamingServer"
-}
-
-// StreamingClientStruct returns the name of the struct that implements ClientInterface.
-func (s *Service) StreamingClientStruct() string {
-	return "tchan" + goPublicName(s.Name) + "StreamingClient"
-}
-
-// HasStreamingExtends returns whether this service extends another streaming service.
-func (s *Service) HasStreamingExtends() bool {
-	return s.ExtendsService != nil && len(s.ExtendsService.StreamingMethods()) > 0
-}
-
 // isStreamingType returns whether the given type should be treated as a stream. This is a
 // hack right now, as it just checks whether the suffix is "Stream".
 func (m *Method) isStreamingType(t *parser.Type) bool {
