@@ -20,3 +20,7 @@ service TestStream {
 
   SStringStream OutStream(1: string prefix)
 }
+
+service TestStream2 extends TestStream {
+  SStringStream OutStream2(1: string prefix)
+}

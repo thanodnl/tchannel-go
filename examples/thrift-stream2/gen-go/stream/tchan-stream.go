@@ -14,6 +14,7 @@ type TChanUniqC interface {
 }
 
 type TChanUniqC2 interface {
+	TChanUniqC
 }
 
 // Implementation of a client and service handler.
@@ -65,12 +66,15 @@ func (s *tchanUniqCServer) Handle(ctx thrift.Context, methodName string, protoco
 }
 
 type tchanUniqC2Client struct {
+	tchanUniqCClient
+
 	thriftService string
 	client        thrift.TChanClient
 }
 
 func newTChanUniqC2Client(thriftService string, client thrift.TChanClient) *tchanUniqC2Client {
 	return &tchanUniqC2Client{
+		*newTChanUniqCClient(thriftService, client),
 		thriftService,
 		client,
 	}
@@ -81,11 +85,14 @@ func NewTChanUniqC2Client(client thrift.TChanClient) TChanUniqC2 {
 }
 
 type tchanUniqC2Server struct {
+	tchanUniqCServer
+
 	handler TChanUniqC2
 }
 
 func newTChanUniqC2Server(handler TChanUniqC2) *tchanUniqC2Server {
 	return &tchanUniqC2Server{
+		*newTChanUniqCServer(handler),
 		handler,
 	}
 }

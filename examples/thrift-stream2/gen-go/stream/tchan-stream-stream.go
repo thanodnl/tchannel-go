@@ -27,18 +27,16 @@ type TChanUniqCClient interface {
 
 // TChanUniqC2Server is the interface that must be implemented by a handler.
 type TChanUniqC2Server interface {
-	TChanUniqC2
+	TChanUniqCServer
 
 	Fakerun(ctx thrift.Context, call *UniqC2FakerunInCall) error
-	Run(ctx thrift.Context, call *UniqC2RunInCall) error
 }
 
 // TChanUniqC2Client is the interface used to make remote calls.
 type TChanUniqC2Client interface {
-	TChanUniqC2
+	TChanUniqCClient
 
 	Fakerun(ctx thrift.Context) (*UniqC2FakerunOutCall, error)
-	Run(ctx thrift.Context) (*UniqC2RunOutCall, error)
 }
 
 type tchanUniqCStreamingServer struct {
@@ -48,10 +46,18 @@ type tchanUniqCStreamingServer struct {
 	client thrift.TChanStreamingClient
 }
 
+// newSTChanUniqCServer returns a tchanUniqCStreamingServer used for embedding in extends.
+func newSTChanUniqCServer(handler TChanUniqCServer, client thrift.TChanStreamingClient) *tchanUniqCStreamingServer {
+	return &tchanUniqCStreamingServer{
+		handler,
+		client,
+	}
+}
+
 // NewSTChanUniqCServer returns a TChanUniqCServer used to route requests to
 // the given handler.
 func NewSTChanUniqCServer(handler TChanUniqCServer, client thrift.TChanStreamingClient) thrift.TChanStreamingServer {
-	return &tchanUniqCStreamingServer{handler, client}
+	return newSTChanUniqCServer(handler, client)
 }
 
 func (s *tchanUniqCStreamingServer) Service() string {
@@ -108,9 +114,16 @@ type tchanUniqCStreamingClient struct {
 	client thrift.TChanStreamingClient
 }
 
+// newSTChanUniqCClient returns a tchanUniqCStreamingClient.
+func newSTChanUniqCClient(client thrift.TChanStreamingClient) *tchanUniqCStreamingClient {
+	return &tchanUniqCStreamingClient{
+		client,
+	}
+}
+
 // NewSTChanUniqCClient returns a TChanUniqCClient that makes remote calls.
 func NewSTChanUniqCClient(client thrift.TChanStreamingClient) TChanUniqCClient {
-	return &tchanUniqCStreamingClient{client}
+	return newSTChanUniqCClient(client)
 }
 
 func (c *tchanUniqCStreamingClient) Run(ctx thrift.Context) (*UniqCRunOutCall, error) {
@@ -309,16 +322,27 @@ func (c *UniqCRunOutCall) ResponseHeaders() (map[string]string, error) {
 }
 
 type tchanUniqC2StreamingServer struct {
+	tchanUniqCStreamingServer
+
 	handler TChanUniqC2Server
 
 	// TODO(prashant): Remove this.
 	client thrift.TChanStreamingClient
 }
 
+// newSTChanUniqC2Server returns a tchanUniqC2StreamingServer used for embedding in extends.
+func newSTChanUniqC2Server(handler TChanUniqC2Server, client thrift.TChanStreamingClient) *tchanUniqC2StreamingServer {
+	return &tchanUniqC2StreamingServer{
+		*newSTChanUniqCServer(handler, client),
+		handler,
+		client,
+	}
+}
+
 // NewSTChanUniqC2Server returns a TChanUniqC2Server used to route requests to
 // the given handler.
 func NewSTChanUniqC2Server(handler TChanUniqC2Server, client thrift.TChanStreamingClient) thrift.TChanStreamingServer {
-	return &tchanUniqC2StreamingServer{handler, client}
+	return newSTChanUniqC2Server(handler, client)
 }
 
 func (s *tchanUniqC2StreamingServer) Service() string {
@@ -328,7 +352,6 @@ func (s *tchanUniqC2StreamingServer) Service() string {
 func (s *tchanUniqC2StreamingServer) Methods() []string {
 	return []string{
 		"fakerun",
-		"run",
 	}
 }
 
@@ -342,8 +365,6 @@ func (s *tchanUniqC2StreamingServer) Handle(ctx thrift.Context, call *tchannel.I
 	switch methodName {
 	case "UniqC2::fakerun":
 		return s.handleFakerun(ctx, call, arg3Reader)
-	case "UniqC2::run":
-		return s.handleRun(ctx, call, arg3Reader)
 	default:
 		return fmt.Errorf("method %v not found in service %v", methodName, s.Service())
 	}
@@ -374,38 +395,23 @@ func (s *tchanUniqC2StreamingServer) handleFakerun(ctx thrift.Context, tcall *tc
 	return nil
 }
 
-func (s *tchanUniqC2StreamingServer) handleRun(ctx thrift.Context, tcall *tchannel.InboundCall, arg3Reader io.ReadCloser) error {
-	call := &UniqC2RunInCall{
-		client: s.client,
-		call:   tcall,
-		ctx:    ctx,
-	}
+type tchanUniqC2StreamingClient struct {
+	tchanUniqCStreamingClient
 
-	call.reader = arg3Reader
-
-	err :=
-		s.handler.Run(ctx, call)
-	if err != nil {
-		// TODO: encode any Thrift exceptions here.
-		return err
-	}
-
-	if err := call.checkWriter(); err != nil {
-		return err
-	}
-
-	// TODO: we may want to Close the writer if it's not already closed.
-
-	return nil
+	client thrift.TChanStreamingClient
 }
 
-type tchanUniqC2StreamingClient struct {
-	client thrift.TChanStreamingClient
+// newSTChanUniqC2Client returns a tchanUniqC2StreamingClient.
+func newSTChanUniqC2Client(client thrift.TChanStreamingClient) *tchanUniqC2StreamingClient {
+	return &tchanUniqC2StreamingClient{
+		*newSTChanUniqCClient(client),
+		client,
+	}
 }
 
 // NewSTChanUniqC2Client returns a TChanUniqC2Client that makes remote calls.
 func NewSTChanUniqC2Client(client thrift.TChanStreamingClient) TChanUniqC2Client {
-	return &tchanUniqC2StreamingClient{client}
+	return newSTChanUniqC2Client(client)
 }
 
 func (c *tchanUniqC2StreamingClient) Fakerun(ctx thrift.Context) (*UniqC2FakerunOutCall, error) {
@@ -415,22 +421,6 @@ func (c *tchanUniqC2StreamingClient) Fakerun(ctx thrift.Context) (*UniqC2Fakerun
 	}
 
 	outCall := &UniqC2FakerunOutCall{
-		client: c.client,
-		call:   call,
-	}
-
-	outCall.writer = writer
-
-	return outCall, nil
-}
-
-func (c *tchanUniqC2StreamingClient) Run(ctx thrift.Context) (*UniqC2RunOutCall, error) {
-	call, writer, err := c.client.StartCall(ctx, "UniqC2::run")
-	if err != nil {
-		return nil, err
-	}
-
-	outCall := &UniqC2RunOutCall{
 		client: c.client,
 		call:   call,
 	}
@@ -613,185 +603,6 @@ func (c *UniqC2FakerunOutCall) Read() (*SCount, error) {
 // ResponseHeaders returns the response headers sent from the server. This will
 // block until server headers have been received.
 func (c *UniqC2FakerunOutCall) ResponseHeaders() (map[string]string, error) {
-	if err := c.checkReader(); err != nil {
-		return nil, err
-	}
-	return c.responseHeaders, nil
-}
-
-// UniqC2RunInCall is the object used to stream arguments and write
-// response headers for incoming calls.
-type UniqC2RunInCall struct {
-	client thrift.TChanStreamingClient
-	call   *tchannel.InboundCall
-	ctx    thrift.Context
-
-	reader io.ReadCloser
-
-	writer tchannel.ArgWriter
-}
-
-// Read returns the next argument, if any is available. If there are no more
-// arguments left, it will return io.EOF.
-func (c *UniqC2RunInCall) Read() (*String, error) {
-	var req String
-	if err := c.client.ReadStreamStruct(c.reader, func(protocol athrift.TProtocol) error {
-		return req.Read(protocol)
-	}); err != nil {
-		return nil, err
-	}
-
-	return &req, nil
-}
-
-// SetResponseHeaders sets the response headers. This must be called before any
-// streaming responses are sent.
-func (c *UniqC2RunInCall) SetResponseHeaders(headers map[string]string) error {
-	if c.writer != nil {
-		// arg3 is already being written, headers must be set first
-		return fmt.Errorf("cannot set headers after writing streaming responses")
-	}
-
-	c.ctx.SetResponseHeaders(headers)
-	return nil
-}
-
-func (c *UniqC2RunInCall) writeResponseHeaders() error {
-	if c.writer != nil {
-		// arg3 is already being written, headers must be set first
-		return fmt.Errorf("cannot set headers after writing streaming responses")
-	}
-
-	// arg2 writer should be used to write headers
-	arg2Writer, err := c.call.Response().Arg2Writer()
-	if err != nil {
-		return err
-	}
-
-	headers := c.ctx.ResponseHeaders()
-	if err := c.client.WriteHeaders(arg2Writer, headers); err != nil {
-		return err
-	}
-
-	return arg2Writer.Close()
-}
-
-// checkWriter creates the arg3 writer if it has not been created.
-// Before the arg3 writer is created, response headers are sent.
-func (c *UniqC2RunInCall) checkWriter() error {
-	if c.writer == nil {
-		if err := c.writeResponseHeaders(); err != nil {
-			return err
-		}
-
-		writer, err := c.call.Response().Arg3Writer()
-		if err != nil {
-			return err
-		}
-		c.writer = writer
-	}
-	return nil
-}
-
-// Write writes a result to the response stream. The written items may not
-// be sent till Flush or Done is called.
-func (c *UniqC2RunInCall) Write(arg *SCount) error {
-	if err := c.checkWriter(); err != nil {
-		return err
-	}
-	return c.client.WriteStreamStruct(c.writer, arg)
-}
-
-// Flush flushes headers (if they have not yet been sent) and any written results.
-func (c *UniqC2RunInCall) Flush() error {
-	if err := c.checkWriter(); err != nil {
-		return err
-	}
-	return c.writer.Flush()
-}
-
-// Done closes the response stream and should be called after all results have been written.
-func (c *UniqC2RunInCall) Done() error {
-	if err := c.checkWriter(); err != nil {
-		return err
-	}
-	return c.writer.Close()
-}
-
-// UniqC2RunOutCall is the object used to stream arguments/results and
-// read response headers for outgoing calls.
-type UniqC2RunOutCall struct {
-	client          thrift.TChanStreamingClient
-	call            *tchannel.OutboundCall
-	responseHeaders map[string]string
-	reader          io.ReadCloser
-	writer          tchannel.ArgWriter
-}
-
-// Write writes an argument to the request stream. The written items may not
-// be sent till Flush or Done is called.
-func (c *UniqC2RunOutCall) Write(arg *String) error {
-	return c.client.WriteStreamStruct(c.writer, arg)
-}
-
-// Flush flushes all written arguments.
-func (c *UniqC2RunOutCall) Flush() error {
-	return c.writer.Flush()
-}
-
-// Done closes the request stream and should be called after all arguments have been written.
-func (c *UniqC2RunOutCall) Done() error {
-	if err := c.writer.Close(); err != nil {
-		return err
-	}
-
-	return nil
-}
-
-func (c *UniqC2RunOutCall) checkReader() error {
-	if c.reader == nil {
-		arg2Reader, err := c.call.Response().Arg2Reader()
-		if err != nil {
-			return err
-		}
-
-		c.responseHeaders, err = c.client.ReadHeaders(arg2Reader)
-		if err != nil {
-			return err
-		}
-		if err := arg2Reader.Close(); err != nil {
-			return err
-		}
-
-		reader, err := c.call.Response().Arg3Reader()
-		if err != nil {
-			return err
-		}
-
-		c.reader = reader
-	}
-	return nil
-}
-
-// Read returns the next result, if any is available. If there are no more
-// results left, it will return io.EOF.
-func (c *UniqC2RunOutCall) Read() (*SCount, error) {
-	if err := c.checkReader(); err != nil {
-		return nil, err
-	}
-	var res SCount
-	if err := c.client.ReadStreamStruct(c.reader, func(protocol athrift.TProtocol) error {
-		return res.Read(protocol)
-	}); err != nil {
-		return nil, err
-	}
-
-	return &res, nil
-}
-
-// ResponseHeaders returns the response headers sent from the server. This will
-// block until server headers have been received.
-func (c *UniqC2RunOutCall) ResponseHeaders() (map[string]string, error) {
 	if err := c.checkReader(); err != nil {
 		return nil, err
 	}

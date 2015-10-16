@@ -37,7 +37,11 @@ import (
 {{ range .Services }}
 // {{ .ServerInterface }} is the interface that must be implemented by a handler.
 type {{ .ServerInterface }} interface {
-  {{ .Interface }}
+  {{ if .HasStreamingExtends }}
+    {{ .ExtendsService.ServerInterface }}
+  {{ else }}
+    {{ .Interface }}
+  {{ end }}
 
 	{{ range .StreamingMethods }}
 		{{ .Name }}({{ .StreamingServerArgList }}) {{ .StreamingServerRetType }}
@@ -46,7 +50,11 @@ type {{ .ServerInterface }} interface {
 
 // {{ .ClientInterface }} is the interface used to make remote calls.
 type {{ .ClientInterface }} interface {
-  {{ .Interface }}
+  {{ if .HasStreamingExtends }}
+    {{ .ExtendsService.ClientInterface }}
+  {{ else }}
+    {{ .Interface }}
+  {{ end }}
 
   {{ range .StreamingMethods }}
     {{ .Name }}({{ .StreamingClientArgList }}) {{ .StreamingClientRetType }}
@@ -58,16 +66,31 @@ type {{ .ClientInterface }} interface {
 {{ range $svc := .Services }}
 
 type {{ .StreamingServerStruct }} struct {
+  {{ if .HasStreamingExtends }}
+    {{ .ExtendsService.StreamingServerStruct }}
+
+  {{ end }}
   handler {{ .ServerInterface }}
 
   // TODO(prashant): Remove this.
   client thrift.TChanStreamingClient
 }
 
+
+// newS{{ .ServerInterface }} returns a {{ .StreamingServerStruct }} used for embedding in extends.
+func newS{{ .ServerInterface }}(handler {{ .ServerInterface }}, client thrift.TChanStreamingClient) *{{ .StreamingServerStruct }} {
+  return &{{ .StreamingServerStruct }}{
+    {{ if .HasStreamingExtends }}
+      *newS{{ .ExtendsService.ServerInterface }}(handler, client),
+    {{ end }}
+    handler,
+    client,
+  }
+}
 // NewS{{ .ServerInterface }} returns a {{ .ServerInterface }} used to route requests to
 // the given handler.
 func NewS{{ .ServerInterface }}(handler {{ .ServerInterface }}, client thrift.TChanStreamingClient) thrift.TChanStreamingServer {
-  return &{{ .StreamingServerStruct }}{handler, client}
+  return newS{{ .ServerInterface }}(handler, client)
 }
 
 func (s *{{ .StreamingServerStruct }}) Service() string {
@@ -149,12 +172,26 @@ func (s *{{ $svc.StreamingServerStruct }}) handle{{ .Name }}(ctx thrift.Context,
 {{ end }}
 
 type {{ .StreamingClientStruct }} struct {
+  {{ if .HasExtends }}
+    {{ .ExtendsService.StreamingClientStruct }}
+
+  {{ end }}
   client thrift.TChanStreamingClient
+}
+
+// newS{{ .ClientInterface }} returns a {{ .StreamingClientStruct }}.
+func newS{{ .ClientInterface }}(client thrift.TChanStreamingClient) *{{ .StreamingClientStruct }}{
+  return &{{ .StreamingClientStruct }}{
+    {{ if .HasExtends }}
+      *newS{{ .ExtendsService.ClientInterface }}(client),
+    {{ end }}
+    client,
+  }
 }
 
 // NewS{{ .ClientInterface }} returns a {{ .ClientInterface }} that makes remote calls.
 func NewS{{ .ClientInterface }}(client thrift.TChanStreamingClient) {{ .ClientInterface }}{
-  return &{{ .StreamingClientStruct }}{client}
+  return newS{{ .ClientInterface }}(client)
 }
 
 {{ range .StreamingMethods }}

@@ -13,6 +13,10 @@ import (
 type TChanTestStream interface {
 }
 
+type TChanTestStream2 interface {
+	TChanTestStream
+}
+
 // Implementation of a client and service handler.
 
 type tchanTestStreamClient struct {
@@ -54,6 +58,58 @@ func (s *tchanTestStreamServer) Methods() []string {
 }
 
 func (s *tchanTestStreamServer) Handle(ctx thrift.Context, methodName string, protocol athrift.TProtocol) (bool, athrift.TStruct, error) {
+	switch methodName {
+
+	default:
+		return false, nil, fmt.Errorf("method %v not found in service %v", methodName, s.Service())
+	}
+}
+
+type tchanTestStream2Client struct {
+	tchanTestStreamClient
+
+	thriftService string
+	client        thrift.TChanClient
+}
+
+func newTChanTestStream2Client(thriftService string, client thrift.TChanClient) *tchanTestStream2Client {
+	return &tchanTestStream2Client{
+		*newTChanTestStreamClient(thriftService, client),
+		thriftService,
+		client,
+	}
+}
+
+func NewTChanTestStream2Client(client thrift.TChanClient) TChanTestStream2 {
+	return newTChanTestStream2Client("TestStream2", client)
+}
+
+type tchanTestStream2Server struct {
+	tchanTestStreamServer
+
+	handler TChanTestStream2
+}
+
+func newTChanTestStream2Server(handler TChanTestStream2) *tchanTestStream2Server {
+	return &tchanTestStream2Server{
+		*newTChanTestStreamServer(handler),
+		handler,
+	}
+}
+
+func NewTChanTestStream2Server(handler TChanTestStream2) thrift.TChanServer {
+	return newTChanTestStream2Server(handler)
+}
+
+func (s *tchanTestStream2Server) Service() string {
+	return "TestStream2"
+}
+
+func (s *tchanTestStream2Server) Methods() []string {
+	return []string{}
+}
+
+func (s *tchanTestStream2Server) Handle(ctx thrift.Context, methodName string, protocol athrift.TProtocol) (bool, athrift.TStruct, error) {
 	switch methodName {
 
 	default:
