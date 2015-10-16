@@ -151,15 +151,8 @@ func (s *tchanAdminServer) StreamingMethods() []string {
 }
 
 func (s *tchanAdminServer) HandleStreaming(ctx thrift.Context, call *tchannel.InboundCall) error {
-	arg3Reader, err := call.Arg3Reader()
-	if err != nil {
-		return err
-	}
 	methodName := string(call.Operation())
-	switch methodName {
-	default:
-		return fmt.Errorf("method %v not found in service %v", methodName, s.Service())
-	}
+	return fmt.Errorf("method %v not found in service %v", methodName, s.Service())
 }
 
 func (s *tchanAdminServer) Handle(ctx thrift.Context, methodName string, protocol athrift.TProtocol) (bool, athrift.TStruct, error) {
@@ -305,15 +298,8 @@ func (s *tchanKeyValueServer) StreamingMethods() []string {
 }
 
 func (s *tchanKeyValueServer) HandleStreaming(ctx thrift.Context, call *tchannel.InboundCall) error {
-	arg3Reader, err := call.Arg3Reader()
-	if err != nil {
-		return err
-	}
 	methodName := string(call.Operation())
-	switch methodName {
-	default:
-		return fmt.Errorf("method %v not found in service %v", methodName, s.Service())
-	}
+	return fmt.Errorf("method %v not found in service %v", methodName, s.Service())
 }
 
 func (s *tchanKeyValueServer) Handle(ctx thrift.Context, methodName string, protocol athrift.TProtocol) (bool, athrift.TStruct, error) {
@@ -464,15 +450,8 @@ func (s *tchanBaseServiceServer) StreamingMethods() []string {
 }
 
 func (s *tchanBaseServiceServer) HandleStreaming(ctx thrift.Context, call *tchannel.InboundCall) error {
-	arg3Reader, err := call.Arg3Reader()
-	if err != nil {
-		return err
-	}
 	methodName := string(call.Operation())
-	switch methodName {
-	default:
-		return fmt.Errorf("method %v not found in service %v", methodName, s.Service())
-	}
+	return fmt.Errorf("method %v not found in service %v", methodName, s.Service())
 }
 
 func (s *tchanBaseServiceServer) Handle(ctx thrift.Context, methodName string, protocol athrift.TProtocol) (bool, athrift.TStruct, error) {

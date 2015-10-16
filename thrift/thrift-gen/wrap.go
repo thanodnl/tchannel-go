@@ -152,6 +152,11 @@ func (s *Service) InternalServerConstructor() string {
 	return "newTChan" + goPublicName(s.Name) + "Server"
 }
 
+// HasStreamingMethods returns whether this service has any streaming methods.
+func (s *Service) HasStreamingMethods() bool {
+	return len(s.StreamingMethods()) > 0
+}
+
 // HasExtends returns whether this service extends another service.
 func (s *Service) HasExtends() bool {
 	return s.ExtendsService != nil

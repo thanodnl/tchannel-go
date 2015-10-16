@@ -111,15 +111,8 @@ func (s *tchanTCollectorServer) StreamingMethods() []string {
 }
 
 func (s *tchanTCollectorServer) HandleStreaming(ctx thrift.Context, call *tchannel.InboundCall) error {
-	arg3Reader, err := call.Arg3Reader()
-	if err != nil {
-		return err
-	}
 	methodName := string(call.Operation())
-	switch methodName {
-	default:
-		return fmt.Errorf("method %v not found in service %v", methodName, s.Service())
-	}
+	return fmt.Errorf("method %v not found in service %v", methodName, s.Service())
 }
 
 func (s *tchanTCollectorServer) Handle(ctx thrift.Context, methodName string, protocol athrift.TProtocol) (bool, athrift.TStruct, error) {

@@ -116,17 +116,16 @@ func (s *tchanUniqCServer) StreamingMethods() []string {
 }
 
 func (s *tchanUniqCServer) HandleStreaming(ctx thrift.Context, call *tchannel.InboundCall) error {
+	methodName := string(call.Operation())
 	arg3Reader, err := call.Arg3Reader()
 	if err != nil {
 		return err
 	}
-	methodName := string(call.Operation())
 	switch methodName {
 	case "UniqC::run":
 		return s.handleRun(ctx, call, arg3Reader)
-	default:
-		return fmt.Errorf("method %v not found in service %v", methodName, s.Service())
 	}
+	return fmt.Errorf("method %v not found in service %v", methodName, s.Service())
 }
 
 func (s *tchanUniqCServer) Handle(ctx thrift.Context, methodName string, protocol athrift.TProtocol) (bool, athrift.TStruct, error) {
@@ -417,17 +416,16 @@ func (s *tchanUniqC2Server) StreamingMethods() []string {
 }
 
 func (s *tchanUniqC2Server) HandleStreaming(ctx thrift.Context, call *tchannel.InboundCall) error {
+	methodName := string(call.Operation())
 	arg3Reader, err := call.Arg3Reader()
 	if err != nil {
 		return err
 	}
-	methodName := string(call.Operation())
 	switch methodName {
 	case "UniqC2::fakerun":
 		return s.handleFakerun(ctx, call, arg3Reader)
-	default:
-		return fmt.Errorf("method %v not found in service %v", methodName, s.Service())
 	}
+	return fmt.Errorf("method %v not found in service %v", methodName, s.Service())
 }
 
 func (s *tchanUniqC2Server) Handle(ctx thrift.Context, methodName string, protocol athrift.TProtocol) (bool, athrift.TStruct, error) {

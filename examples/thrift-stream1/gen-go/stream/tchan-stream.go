@@ -140,19 +140,18 @@ func (s *tchanTestStreamServer) StreamingMethods() []string {
 }
 
 func (s *tchanTestStreamServer) HandleStreaming(ctx thrift.Context, call *tchannel.InboundCall) error {
+	methodName := string(call.Operation())
 	arg3Reader, err := call.Arg3Reader()
 	if err != nil {
 		return err
 	}
-	methodName := string(call.Operation())
 	switch methodName {
 	case "TestStream::BothStream":
 		return s.handleBothStream(ctx, call, arg3Reader)
 	case "TestStream::OutStream":
 		return s.handleOutStream(ctx, call, arg3Reader)
-	default:
-		return fmt.Errorf("method %v not found in service %v", methodName, s.Service())
 	}
+	return fmt.Errorf("method %v not found in service %v", methodName, s.Service())
 }
 
 func (s *tchanTestStreamServer) Handle(ctx thrift.Context, methodName string, protocol athrift.TProtocol) (bool, athrift.TStruct, error) {
@@ -622,17 +621,16 @@ func (s *tchanTestStream2Server) StreamingMethods() []string {
 }
 
 func (s *tchanTestStream2Server) HandleStreaming(ctx thrift.Context, call *tchannel.InboundCall) error {
+	methodName := string(call.Operation())
 	arg3Reader, err := call.Arg3Reader()
 	if err != nil {
 		return err
 	}
-	methodName := string(call.Operation())
 	switch methodName {
 	case "TestStream2::OutStream2":
 		return s.handleOutStream2(ctx, call, arg3Reader)
-	default:
-		return fmt.Errorf("method %v not found in service %v", methodName, s.Service())
 	}
+	return fmt.Errorf("method %v not found in service %v", methodName, s.Service())
 }
 
 func (s *tchanTestStream2Server) Handle(ctx thrift.Context, methodName string, protocol athrift.TProtocol) (bool, athrift.TStruct, error) {

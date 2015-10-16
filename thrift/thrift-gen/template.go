@@ -207,19 +207,20 @@ func (s *{{ .ServerStruct}}) StreamingMethods() []string {
 }
 
 func (s *{{ .ServerStruct }}) HandleStreaming(ctx thrift.Context, call *tchannel.InboundCall) error {
+	methodName := string(call.Operation())
+	{{ if .HasStreamingMethods }}
   arg3Reader, err := call.Arg3Reader()
   if err != nil {
     return err
   }
-  methodName := string(call.Operation())
   switch methodName {
 	{{ range .StreamingMethods }}
   case "{{ $svc.ThriftName }}::{{ .ThriftName }}":
 			return s.{{ .HandleFunc }}(ctx, call, arg3Reader)
 	{{ end }}
-	default:
-    return fmt.Errorf("method %v not found in service %v", methodName, s.Service())
 	}
+	{{ end }}
+	return fmt.Errorf("method %v not found in service %v", methodName, s.Service())
 }
 
 func (s *{{ .ServerStruct }}) Handle(ctx {{ contextType }}, methodName string, protocol athrift.TProtocol) (bool, athrift.TStruct, error) {
