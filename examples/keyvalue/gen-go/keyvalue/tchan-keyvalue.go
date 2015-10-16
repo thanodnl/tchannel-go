@@ -16,6 +16,7 @@ var _ = io.Reader(nil)
 
 // Interfaces for the service and client for the services defined in the IDL.
 
+// TChanAdmin is the interface containing non-streaming methods.
 type TChanAdmin interface {
 	TChanBaseService
 
@@ -36,6 +37,7 @@ type TChanAdminClient interface {
 	ClearAll(ctx thrift.Context) error
 }
 
+// TChanKeyValue is the interface containing non-streaming methods.
 type TChanKeyValue interface {
 	TChanBaseService
 
@@ -62,6 +64,7 @@ type TChanKeyValueClient interface {
 	Set(ctx thrift.Context, key string, value string) error
 }
 
+// TChanBaseService is the interface containing non-streaming methods.
 type TChanBaseService interface {
 	HealthCheck(ctx thrift.Context) (string, error)
 }

@@ -16,6 +16,7 @@ var _ = io.Reader(nil)
 
 // Interfaces for the service and client for the services defined in the IDL.
 
+// TChanSecondService is the interface containing non-streaming methods.
 type TChanSecondService interface {
 	Echo(ctx thrift.Context, arg string) (string, error)
 }
@@ -30,6 +31,7 @@ type TChanSecondServiceClient interface {
 	Echo(ctx thrift.Context, arg string) (string, error)
 }
 
+// TChanSimpleService is the interface containing non-streaming methods.
 type TChanSimpleService interface {
 	Call(ctx thrift.Context, arg *Data) (*Data, error)
 	Simple(ctx thrift.Context) error

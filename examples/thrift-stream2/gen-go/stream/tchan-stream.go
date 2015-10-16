@@ -16,6 +16,7 @@ var _ = io.Reader(nil)
 
 // Interfaces for the service and client for the services defined in the IDL.
 
+// TChanUniqC is the interface containing non-streaming methods.
 type TChanUniqC interface {
 }
 
@@ -29,6 +30,7 @@ type TChanUniqCClient interface {
 	Run(ctx thrift.Context) (*UniqCRunOutCall, error)
 }
 
+// TChanUniqC2 is the interface containing non-streaming methods.
 type TChanUniqC2 interface {
 	TChanUniqC
 }

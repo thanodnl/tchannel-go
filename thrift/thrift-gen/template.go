@@ -20,6 +20,7 @@ var _ = io.Reader(nil)
 // Interfaces for the service and client for the services defined in the IDL.
 
 {{ range .Services }}
+// {{ .Interface }} is the interface containing non-streaming methods.
 type {{ .Interface }} interface {
 	{{ if .HasExtends }}
 		{{ .ExtendsService.Interface }}

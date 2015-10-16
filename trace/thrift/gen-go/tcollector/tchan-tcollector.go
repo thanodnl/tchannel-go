@@ -16,6 +16,7 @@ var _ = io.Reader(nil)
 
 // Interfaces for the service and client for the services defined in the IDL.
 
+// TChanTCollector is the interface containing non-streaming methods.
 type TChanTCollector interface {
 	MultiSubmit(ctx thrift.Context, spans []*Span) ([]*Response, error)
 	Submit(ctx thrift.Context, span *Span) (*Response, error)

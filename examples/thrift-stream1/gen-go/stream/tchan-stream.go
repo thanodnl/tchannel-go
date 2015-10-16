@@ -16,6 +16,7 @@ var _ = io.Reader(nil)
 
 // Interfaces for the service and client for the services defined in the IDL.
 
+// TChanTestStream is the interface containing non-streaming methods.
 type TChanTestStream interface {
 }
 
@@ -31,6 +32,7 @@ type TChanTestStreamClient interface {
 	OutStream(ctx thrift.Context, prefix string) (*TestStreamOutStreamOutCall, error)
 }
 
+// TChanTestStream2 is the interface containing non-streaming methods.
 type TChanTestStream2 interface {
 	TChanTestStream
 }
