@@ -20,7 +20,7 @@ func main() {
 	}
 
 	svr := thrift.NewServer(ch)
-	svr.RegisterStreaming(stream.NewSTChanTestStreamServer(handler{}, thrift.NewClient(ch, "stream", nil)))
+	svr.RegisterStreaming(stream.NewTChanTestStreamServer(handler{}))
 
 	if err := ch.ListenAndServe(":12345"); err != nil {
 		log.Fatalf("ListenAndServe failed: %v", err)
@@ -40,7 +40,7 @@ func runClient(hostPort string) error {
 	ch.Peers().Add(hostPort)
 
 	tClient := thrift.NewClient(ch, "stream", nil)
-	client := stream.NewSTChanTestStreamClient(tClient)
+	client := stream.NewTChanTestStreamClient(tClient)
 
 	ctx, cancel := thrift.NewContext(10 * time.Second)
 	defer cancel()

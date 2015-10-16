@@ -15,6 +15,7 @@ import (
 
 // Used to avoid unused warnings for non-streaming services.
 var _ = tchannel.NewChannel
+var _ = io.Reader(nil)
 
 // Interfaces for the service and client for the services defined in the IDL.
 

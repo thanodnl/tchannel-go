@@ -19,7 +19,7 @@ var GoUnusedProtection__ int
 // Attributes:
 //  - Key
 type KeyNotFound struct {
-	Key string `thrift:"key,1" json:"key"`
+	Key string `thrift:"key,1,required" json:"key"`
 }
 
 func NewKeyNotFound() *KeyNotFound {
@@ -34,6 +34,8 @@ func (p *KeyNotFound) Read(iprot thrift.TProtocol) error {
 		return thrift.PrependError(fmt.Sprintf("%T read error: ", p), err)
 	}
 
+	var issetKey bool = false
+
 	for {
 		_, fieldTypeId, fieldId, err := iprot.ReadFieldBegin()
 		if err != nil {
@@ -47,6 +49,7 @@ func (p *KeyNotFound) Read(iprot thrift.TProtocol) error {
 			if err := p.readField1(iprot); err != nil {
 				return err
 			}
+			issetKey = true
 		default:
 			if err := iprot.Skip(fieldTypeId); err != nil {
 				return err
@@ -58,6 +61,9 @@ func (p *KeyNotFound) Read(iprot thrift.TProtocol) error {
 	}
 	if err := iprot.ReadStructEnd(); err != nil {
 		return thrift.PrependError(fmt.Sprintf("%T read struct end error: ", p), err)
+	}
+	if !issetKey {
+		return thrift.NewTProtocolExceptionWithType(thrift.INVALID_DATA, fmt.Errorf("Required field Key is not set"))
 	}
 	return nil
 }

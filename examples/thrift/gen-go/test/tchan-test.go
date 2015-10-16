@@ -3,10 +3,16 @@ package test
 
 import (
 	"fmt"
+	"io"
 
 	athrift "github.com/apache/thrift/lib/go/thrift"
+	"github.com/uber/tchannel-go"
 	"github.com/uber/tchannel-go/thrift"
 )
+
+// Used to avoid unused warnings for non-streaming services.
+var _ = tchannel.NewChannel
+var _ = io.Reader(nil)
 
 // Interfaces for the service and client for the services defined in the IDL.
 
@@ -68,17 +74,17 @@ type TChanSecondClient interface {
 
 type tchanBaseClient struct {
 	thriftService string
-	client        thrift.TChanClient
+	client        thrift.TChanStreamingClient
 }
 
-func newTChanBaseClient(thriftService string, client thrift.TChanClient) *tchanBaseClient {
+func newTChanBaseClient(thriftService string, client thrift.TChanStreamingClient) *tchanBaseClient {
 	return &tchanBaseClient{
 		thriftService,
 		client,
 	}
 }
 
-func NewTChanBaseClient(client thrift.TChanClient) TChanBase {
+func NewTChanBaseClient(client thrift.TChanStreamingClient) TChanBaseClient {
 	return newTChanBaseClient("Base", client)
 }
 
@@ -93,16 +99,18 @@ func (c *tchanBaseClient) BaseCall(ctx thrift.Context) error {
 }
 
 type tchanBaseServer struct {
-	handler TChanBase
+	handler TChanBaseServer
+	common  thrift.TCommon
 }
 
-func newTChanBaseServer(handler TChanBase) *tchanBaseServer {
+func newTChanBaseServer(handler TChanBaseServer) *tchanBaseServer {
 	return &tchanBaseServer{
 		handler,
+		nil, /* common */
 	}
 }
 
-func NewTChanBaseServer(handler TChanBase) thrift.TChanServer {
+func NewTChanBaseServer(handler TChanBaseServer) thrift.TChanStreamingServer {
 	return newTChanBaseServer(handler)
 }
 
@@ -110,9 +118,29 @@ func (s *tchanBaseServer) Service() string {
 	return "Base"
 }
 
+func (s *tchanBaseServer) SetCommon(common thrift.TCommon) {
+	s.common = common
+}
+
 func (s *tchanBaseServer) Methods() []string {
 	return []string{
 		"BaseCall",
+	}
+}
+
+func (s *tchanBaseServer) StreamingMethods() []string {
+	return []string{}
+}
+
+func (s *tchanBaseServer) HandleStreaming(ctx thrift.Context, call *tchannel.InboundCall) error {
+	arg3Reader, err := call.Arg3Reader()
+	if err != nil {
+		return err
+	}
+	methodName := string(call.Operation())
+	switch methodName {
+	default:
+		return fmt.Errorf("method %v not found in service %v", methodName, s.Service())
 	}
 }
 
@@ -149,10 +177,10 @@ type tchanFirstClient struct {
 	tchanBaseClient
 
 	thriftService string
-	client        thrift.TChanClient
+	client        thrift.TChanStreamingClient
 }
 
-func newTChanFirstClient(thriftService string, client thrift.TChanClient) *tchanFirstClient {
+func newTChanFirstClient(thriftService string, client thrift.TChanStreamingClient) *tchanFirstClient {
 	return &tchanFirstClient{
 		*newTChanBaseClient(thriftService, client),
 		thriftService,
@@ -160,7 +188,7 @@ func newTChanFirstClient(thriftService string, client thrift.TChanClient) *tchan
 	}
 }
 
-func NewTChanFirstClient(client thrift.TChanClient) TChanFirst {
+func NewTChanFirstClient(client thrift.TChanStreamingClient) TChanFirstClient {
 	return newTChanFirstClient("First", client)
 }
 
@@ -199,22 +227,29 @@ func (c *tchanFirstClient) Healthcheck(ctx thrift.Context) (*HealthCheckRes, err
 type tchanFirstServer struct {
 	tchanBaseServer
 
-	handler TChanFirst
+	handler TChanFirstServer
+	common  thrift.TCommon
 }
 
-func newTChanFirstServer(handler TChanFirst) *tchanFirstServer {
+func newTChanFirstServer(handler TChanFirstServer) *tchanFirstServer {
 	return &tchanFirstServer{
 		*newTChanBaseServer(handler),
 		handler,
+		nil, /* common */
 	}
 }
 
-func NewTChanFirstServer(handler TChanFirst) thrift.TChanServer {
+func NewTChanFirstServer(handler TChanFirstServer) thrift.TChanStreamingServer {
 	return newTChanFirstServer(handler)
 }
 
 func (s *tchanFirstServer) Service() string {
 	return "First"
+}
+
+func (s *tchanFirstServer) SetCommon(common thrift.TCommon) {
+	s.common = common
+	s.tchanBaseServer.SetCommon(common)
 }
 
 func (s *tchanFirstServer) Methods() []string {
@@ -224,6 +259,22 @@ func (s *tchanFirstServer) Methods() []string {
 		"Healthcheck",
 
 		"BaseCall",
+	}
+}
+
+func (s *tchanFirstServer) StreamingMethods() []string {
+	return []string{}
+}
+
+func (s *tchanFirstServer) HandleStreaming(ctx thrift.Context, call *tchannel.InboundCall) error {
+	arg3Reader, err := call.Arg3Reader()
+	if err != nil {
+		return err
+	}
+	methodName := string(call.Operation())
+	switch methodName {
+	default:
+		return fmt.Errorf("method %v not found in service %v", methodName, s.Service())
 	}
 }
 
@@ -305,17 +356,17 @@ func (s *tchanFirstServer) handleHealthcheck(ctx thrift.Context, protocol athrif
 
 type tchanSecondClient struct {
 	thriftService string
-	client        thrift.TChanClient
+	client        thrift.TChanStreamingClient
 }
 
-func newTChanSecondClient(thriftService string, client thrift.TChanClient) *tchanSecondClient {
+func newTChanSecondClient(thriftService string, client thrift.TChanStreamingClient) *tchanSecondClient {
 	return &tchanSecondClient{
 		thriftService,
 		client,
 	}
 }
 
-func NewTChanSecondClient(client thrift.TChanClient) TChanSecond {
+func NewTChanSecondClient(client thrift.TChanStreamingClient) TChanSecondClient {
 	return newTChanSecondClient("Second", client)
 }
 
@@ -330,16 +381,18 @@ func (c *tchanSecondClient) Test(ctx thrift.Context) error {
 }
 
 type tchanSecondServer struct {
-	handler TChanSecond
+	handler TChanSecondServer
+	common  thrift.TCommon
 }
 
-func newTChanSecondServer(handler TChanSecond) *tchanSecondServer {
+func newTChanSecondServer(handler TChanSecondServer) *tchanSecondServer {
 	return &tchanSecondServer{
 		handler,
+		nil, /* common */
 	}
 }
 
-func NewTChanSecondServer(handler TChanSecond) thrift.TChanServer {
+func NewTChanSecondServer(handler TChanSecondServer) thrift.TChanStreamingServer {
 	return newTChanSecondServer(handler)
 }
 
@@ -347,9 +400,29 @@ func (s *tchanSecondServer) Service() string {
 	return "Second"
 }
 
+func (s *tchanSecondServer) SetCommon(common thrift.TCommon) {
+	s.common = common
+}
+
 func (s *tchanSecondServer) Methods() []string {
 	return []string{
 		"Test",
+	}
+}
+
+func (s *tchanSecondServer) StreamingMethods() []string {
+	return []string{}
+}
+
+func (s *tchanSecondServer) HandleStreaming(ctx thrift.Context, call *tchannel.InboundCall) error {
+	arg3Reader, err := call.Arg3Reader()
+	if err != nil {
+		return err
+	}
+	methodName := string(call.Operation())
+	switch methodName {
+	default:
+		return fmt.Errorf("method %v not found in service %v", methodName, s.Service())
 	}
 }
 

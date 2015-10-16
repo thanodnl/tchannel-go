@@ -3,10 +3,16 @@ package test
 
 import (
 	"fmt"
+	"io"
 
 	athrift "github.com/apache/thrift/lib/go/thrift"
+	"github.com/uber/tchannel-go"
 	"github.com/uber/tchannel-go/thrift"
 )
+
+// Used to avoid unused warnings for non-streaming services.
+var _ = tchannel.NewChannel
+var _ = io.Reader(nil)
 
 // Interfaces for the service and client for the services defined in the IDL.
 
@@ -45,17 +51,17 @@ type TChanSimpleServiceClient interface {
 
 type tchanSecondServiceClient struct {
 	thriftService string
-	client        thrift.TChanClient
+	client        thrift.TChanStreamingClient
 }
 
-func newTChanSecondServiceClient(thriftService string, client thrift.TChanClient) *tchanSecondServiceClient {
+func newTChanSecondServiceClient(thriftService string, client thrift.TChanStreamingClient) *tchanSecondServiceClient {
 	return &tchanSecondServiceClient{
 		thriftService,
 		client,
 	}
 }
 
-func NewTChanSecondServiceClient(client thrift.TChanClient) TChanSecondService {
+func NewTChanSecondServiceClient(client thrift.TChanStreamingClient) TChanSecondServiceClient {
 	return newTChanSecondServiceClient("SecondService", client)
 }
 
@@ -72,16 +78,18 @@ func (c *tchanSecondServiceClient) Echo(ctx thrift.Context, arg string) (string,
 }
 
 type tchanSecondServiceServer struct {
-	handler TChanSecondService
+	handler TChanSecondServiceServer
+	common  thrift.TCommon
 }
 
-func newTChanSecondServiceServer(handler TChanSecondService) *tchanSecondServiceServer {
+func newTChanSecondServiceServer(handler TChanSecondServiceServer) *tchanSecondServiceServer {
 	return &tchanSecondServiceServer{
 		handler,
+		nil, /* common */
 	}
 }
 
-func NewTChanSecondServiceServer(handler TChanSecondService) thrift.TChanServer {
+func NewTChanSecondServiceServer(handler TChanSecondServiceServer) thrift.TChanStreamingServer {
 	return newTChanSecondServiceServer(handler)
 }
 
@@ -89,9 +97,29 @@ func (s *tchanSecondServiceServer) Service() string {
 	return "SecondService"
 }
 
+func (s *tchanSecondServiceServer) SetCommon(common thrift.TCommon) {
+	s.common = common
+}
+
 func (s *tchanSecondServiceServer) Methods() []string {
 	return []string{
 		"Echo",
+	}
+}
+
+func (s *tchanSecondServiceServer) StreamingMethods() []string {
+	return []string{}
+}
+
+func (s *tchanSecondServiceServer) HandleStreaming(ctx thrift.Context, call *tchannel.InboundCall) error {
+	arg3Reader, err := call.Arg3Reader()
+	if err != nil {
+		return err
+	}
+	methodName := string(call.Operation())
+	switch methodName {
+	default:
+		return fmt.Errorf("method %v not found in service %v", methodName, s.Service())
 	}
 }
 
@@ -127,17 +155,17 @@ func (s *tchanSecondServiceServer) handleEcho(ctx thrift.Context, protocol athri
 
 type tchanSimpleServiceClient struct {
 	thriftService string
-	client        thrift.TChanClient
+	client        thrift.TChanStreamingClient
 }
 
-func newTChanSimpleServiceClient(thriftService string, client thrift.TChanClient) *tchanSimpleServiceClient {
+func newTChanSimpleServiceClient(thriftService string, client thrift.TChanStreamingClient) *tchanSimpleServiceClient {
 	return &tchanSimpleServiceClient{
 		thriftService,
 		client,
 	}
 }
 
-func NewTChanSimpleServiceClient(client thrift.TChanClient) TChanSimpleService {
+func NewTChanSimpleServiceClient(client thrift.TChanStreamingClient) TChanSimpleServiceClient {
 	return newTChanSimpleServiceClient("SimpleService", client)
 }
 
@@ -167,16 +195,18 @@ func (c *tchanSimpleServiceClient) Simple(ctx thrift.Context) error {
 }
 
 type tchanSimpleServiceServer struct {
-	handler TChanSimpleService
+	handler TChanSimpleServiceServer
+	common  thrift.TCommon
 }
 
-func newTChanSimpleServiceServer(handler TChanSimpleService) *tchanSimpleServiceServer {
+func newTChanSimpleServiceServer(handler TChanSimpleServiceServer) *tchanSimpleServiceServer {
 	return &tchanSimpleServiceServer{
 		handler,
+		nil, /* common */
 	}
 }
 
-func NewTChanSimpleServiceServer(handler TChanSimpleService) thrift.TChanServer {
+func NewTChanSimpleServiceServer(handler TChanSimpleServiceServer) thrift.TChanStreamingServer {
 	return newTChanSimpleServiceServer(handler)
 }
 
@@ -184,10 +214,30 @@ func (s *tchanSimpleServiceServer) Service() string {
 	return "SimpleService"
 }
 
+func (s *tchanSimpleServiceServer) SetCommon(common thrift.TCommon) {
+	s.common = common
+}
+
 func (s *tchanSimpleServiceServer) Methods() []string {
 	return []string{
 		"Call",
 		"Simple",
+	}
+}
+
+func (s *tchanSimpleServiceServer) StreamingMethods() []string {
+	return []string{}
+}
+
+func (s *tchanSimpleServiceServer) HandleStreaming(ctx thrift.Context, call *tchannel.InboundCall) error {
+	arg3Reader, err := call.Arg3Reader()
+	if err != nil {
+		return err
+	}
+	methodName := string(call.Operation())
+	switch methodName {
+	default:
+		return fmt.Errorf("method %v not found in service %v", methodName, s.Service())
 	}
 }
 

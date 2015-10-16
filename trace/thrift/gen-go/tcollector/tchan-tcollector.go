@@ -3,10 +3,16 @@ package tcollector
 
 import (
 	"fmt"
+	"io"
 
 	athrift "github.com/apache/thrift/lib/go/thrift"
+	"github.com/uber/tchannel-go"
 	"github.com/uber/tchannel-go/thrift"
 )
+
+// Used to avoid unused warnings for non-streaming services.
+var _ = tchannel.NewChannel
+var _ = io.Reader(nil)
 
 // Interfaces for the service and client for the services defined in the IDL.
 
@@ -31,17 +37,17 @@ type TChanTCollectorClient interface {
 
 type tchanTCollectorClient struct {
 	thriftService string
-	client        thrift.TChanClient
+	client        thrift.TChanStreamingClient
 }
 
-func newTChanTCollectorClient(thriftService string, client thrift.TChanClient) *tchanTCollectorClient {
+func newTChanTCollectorClient(thriftService string, client thrift.TChanStreamingClient) *tchanTCollectorClient {
 	return &tchanTCollectorClient{
 		thriftService,
 		client,
 	}
 }
 
-func NewTChanTCollectorClient(client thrift.TChanClient) TChanTCollector {
+func NewTChanTCollectorClient(client thrift.TChanStreamingClient) TChanTCollectorClient {
 	return newTChanTCollectorClient("TCollector", client)
 }
 
@@ -70,16 +76,18 @@ func (c *tchanTCollectorClient) Submit(ctx thrift.Context, span *Span) (*Respons
 }
 
 type tchanTCollectorServer struct {
-	handler TChanTCollector
+	handler TChanTCollectorServer
+	common  thrift.TCommon
 }
 
-func newTChanTCollectorServer(handler TChanTCollector) *tchanTCollectorServer {
+func newTChanTCollectorServer(handler TChanTCollectorServer) *tchanTCollectorServer {
 	return &tchanTCollectorServer{
 		handler,
+		nil, /* common */
 	}
 }
 
-func NewTChanTCollectorServer(handler TChanTCollector) thrift.TChanServer {
+func NewTChanTCollectorServer(handler TChanTCollectorServer) thrift.TChanStreamingServer {
 	return newTChanTCollectorServer(handler)
 }
 
@@ -87,10 +95,30 @@ func (s *tchanTCollectorServer) Service() string {
 	return "TCollector"
 }
 
+func (s *tchanTCollectorServer) SetCommon(common thrift.TCommon) {
+	s.common = common
+}
+
 func (s *tchanTCollectorServer) Methods() []string {
 	return []string{
 		"multi_submit",
 		"submit",
+	}
+}
+
+func (s *tchanTCollectorServer) StreamingMethods() []string {
+	return []string{}
+}
+
+func (s *tchanTCollectorServer) HandleStreaming(ctx thrift.Context, call *tchannel.InboundCall) error {
+	arg3Reader, err := call.Arg3Reader()
+	if err != nil {
+		return err
+	}
+	methodName := string(call.Operation())
+	switch methodName {
+	default:
+		return fmt.Errorf("method %v not found in service %v", methodName, s.Service())
 	}
 }
 

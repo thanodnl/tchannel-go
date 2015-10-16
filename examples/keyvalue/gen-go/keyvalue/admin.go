@@ -78,16 +78,16 @@ func (p *AdminClient) recvClearAll() (err error) {
 		return
 	}
 	if mTypeId == thrift.EXCEPTION {
-		error12 := thrift.NewTApplicationException(thrift.UNKNOWN_APPLICATION_EXCEPTION, "Unknown Exception")
-		var error13 error
-		error13, err = error12.Read(iprot)
+		error14 := thrift.NewTApplicationException(thrift.UNKNOWN_APPLICATION_EXCEPTION, "Unknown Exception")
+		var error15 error
+		error15, err = error14.Read(iprot)
 		if err != nil {
 			return
 		}
 		if err = iprot.ReadMessageEnd(); err != nil {
 			return
 		}
-		err = error13
+		err = error15
 		return
 	}
 	if mTypeId != thrift.REPLY {
@@ -113,9 +113,9 @@ type AdminProcessor struct {
 }
 
 func NewAdminProcessor(handler Admin) *AdminProcessor {
-	self14 := &AdminProcessor{NewBaseServiceProcessor(handler)}
-	self14.AddToProcessorMap("clearAll", &adminProcessorClearAll{handler: handler})
-	return self14
+	self16 := &AdminProcessor{NewBaseServiceProcessor(handler)}
+	self16.AddToProcessorMap("clearAll", &adminProcessorClearAll{handler: handler})
+	return self16
 }
 
 type adminProcessorClearAll struct {

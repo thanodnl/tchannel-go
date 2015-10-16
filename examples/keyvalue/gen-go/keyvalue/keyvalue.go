@@ -24,6 +24,7 @@ type KeyValue interface {
 	//  - Key
 	//  - Value
 	Set(key string, value string) (err error)
+	Hi() (err error)
 }
 
 type KeyValueClient struct {
@@ -204,15 +205,88 @@ func (p *KeyValueClient) recvSet() (err error) {
 	return
 }
 
+func (p *KeyValueClient) Hi() (err error) {
+	if err = p.sendHi(); err != nil {
+		return
+	}
+	return p.recvHi()
+}
+
+func (p *KeyValueClient) sendHi() (err error) {
+	oprot := p.OutputProtocol
+	if oprot == nil {
+		oprot = p.ProtocolFactory.GetProtocol(p.Transport)
+		p.OutputProtocol = oprot
+	}
+	p.SeqId++
+	if err = oprot.WriteMessageBegin("Hi", thrift.CALL, p.SeqId); err != nil {
+		return
+	}
+	args := KeyValueHiArgs{}
+	if err = args.Write(oprot); err != nil {
+		return
+	}
+	if err = oprot.WriteMessageEnd(); err != nil {
+		return
+	}
+	return oprot.Flush()
+}
+
+func (p *KeyValueClient) recvHi() (err error) {
+	iprot := p.InputProtocol
+	if iprot == nil {
+		iprot = p.ProtocolFactory.GetProtocol(p.Transport)
+		p.InputProtocol = iprot
+	}
+	method, mTypeId, seqId, err := iprot.ReadMessageBegin()
+	if err != nil {
+		return
+	}
+	if method != "Hi" {
+		err = thrift.NewTApplicationException(thrift.WRONG_METHOD_NAME, "Hi failed: wrong method name")
+		return
+	}
+	if p.SeqId != seqId {
+		err = thrift.NewTApplicationException(thrift.BAD_SEQUENCE_ID, "Hi failed: out of sequence response")
+		return
+	}
+	if mTypeId == thrift.EXCEPTION {
+		error8 := thrift.NewTApplicationException(thrift.UNKNOWN_APPLICATION_EXCEPTION, "Unknown Exception")
+		var error9 error
+		error9, err = error8.Read(iprot)
+		if err != nil {
+			return
+		}
+		if err = iprot.ReadMessageEnd(); err != nil {
+			return
+		}
+		err = error9
+		return
+	}
+	if mTypeId != thrift.REPLY {
+		err = thrift.NewTApplicationException(thrift.INVALID_MESSAGE_TYPE_EXCEPTION, "Hi failed: invalid message type")
+		return
+	}
+	result := KeyValueHiResult{}
+	if err = result.Read(iprot); err != nil {
+		return
+	}
+	if err = iprot.ReadMessageEnd(); err != nil {
+		return
+	}
+	return
+}
+
 type KeyValueProcessor struct {
 	*BaseServiceProcessor
 }
 
 func NewKeyValueProcessor(handler KeyValue) *KeyValueProcessor {
-	self8 := &KeyValueProcessor{NewBaseServiceProcessor(handler)}
-	self8.AddToProcessorMap("Get", &keyValueProcessorGet{handler: handler})
-	self8.AddToProcessorMap("Set", &keyValueProcessorSet{handler: handler})
-	return self8
+	self10 := &KeyValueProcessor{NewBaseServiceProcessor(handler)}
+	self10.AddToProcessorMap("Get", &keyValueProcessorGet{handler: handler})
+	self10.AddToProcessorMap("Set", &keyValueProcessorSet{handler: handler})
+	self10.AddToProcessorMap("Hi", &keyValueProcessorHi{handler: handler})
+	return self10
 }
 
 type keyValueProcessorGet struct {
@@ -303,6 +377,51 @@ func (p *keyValueProcessorSet) Process(seqId int32, iprot, oprot thrift.TProtoco
 		}
 	}
 	if err2 = oprot.WriteMessageBegin("Set", thrift.REPLY, seqId); err2 != nil {
+		err = err2
+	}
+	if err2 = result.Write(oprot); err == nil && err2 != nil {
+		err = err2
+	}
+	if err2 = oprot.WriteMessageEnd(); err == nil && err2 != nil {
+		err = err2
+	}
+	if err2 = oprot.Flush(); err == nil && err2 != nil {
+		err = err2
+	}
+	if err != nil {
+		return
+	}
+	return true, err
+}
+
+type keyValueProcessorHi struct {
+	handler KeyValue
+}
+
+func (p *keyValueProcessorHi) Process(seqId int32, iprot, oprot thrift.TProtocol) (success bool, err thrift.TException) {
+	args := KeyValueHiArgs{}
+	if err = args.Read(iprot); err != nil {
+		iprot.ReadMessageEnd()
+		x := thrift.NewTApplicationException(thrift.PROTOCOL_ERROR, err.Error())
+		oprot.WriteMessageBegin("Hi", thrift.EXCEPTION, seqId)
+		x.Write(oprot)
+		oprot.WriteMessageEnd()
+		oprot.Flush()
+		return false, err
+	}
+
+	iprot.ReadMessageEnd()
+	result := KeyValueHiResult{}
+	var err2 error
+	if err2 = p.handler.Hi(); err2 != nil {
+		x := thrift.NewTApplicationException(thrift.INTERNAL_ERROR, "Internal error processing Hi: "+err2.Error())
+		oprot.WriteMessageBegin("Hi", thrift.EXCEPTION, seqId)
+		x.Write(oprot)
+		oprot.WriteMessageEnd()
+		oprot.Flush()
+		return true, err2
+	}
+	if err2 = oprot.WriteMessageBegin("Hi", thrift.REPLY, seqId); err2 != nil {
 		err = err2
 	}
 	if err2 = result.Write(oprot); err == nil && err2 != nil {
@@ -830,4 +949,110 @@ func (p *KeyValueSetResult) String() string {
 		return "<nil>"
 	}
 	return fmt.Sprintf("KeyValueSetResult(%+v)", *p)
+}
+
+type KeyValueHiArgs struct {
+}
+
+func NewKeyValueHiArgs() *KeyValueHiArgs {
+	return &KeyValueHiArgs{}
+}
+
+func (p *KeyValueHiArgs) Read(iprot thrift.TProtocol) error {
+	if _, err := iprot.ReadStructBegin(); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T read error: ", p), err)
+	}
+
+	for {
+		_, fieldTypeId, fieldId, err := iprot.ReadFieldBegin()
+		if err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T field %d read error: ", p, fieldId), err)
+		}
+		if fieldTypeId == thrift.STOP {
+			break
+		}
+		if err := iprot.Skip(fieldTypeId); err != nil {
+			return err
+		}
+		if err := iprot.ReadFieldEnd(); err != nil {
+			return err
+		}
+	}
+	if err := iprot.ReadStructEnd(); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T read struct end error: ", p), err)
+	}
+	return nil
+}
+
+func (p *KeyValueHiArgs) Write(oprot thrift.TProtocol) error {
+	if err := oprot.WriteStructBegin("Hi_args"); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T write struct begin error: ", p), err)
+	}
+	if err := oprot.WriteFieldStop(); err != nil {
+		return thrift.PrependError("write field stop error: ", err)
+	}
+	if err := oprot.WriteStructEnd(); err != nil {
+		return thrift.PrependError("write struct stop error: ", err)
+	}
+	return nil
+}
+
+func (p *KeyValueHiArgs) String() string {
+	if p == nil {
+		return "<nil>"
+	}
+	return fmt.Sprintf("KeyValueHiArgs(%+v)", *p)
+}
+
+type KeyValueHiResult struct {
+}
+
+func NewKeyValueHiResult() *KeyValueHiResult {
+	return &KeyValueHiResult{}
+}
+
+func (p *KeyValueHiResult) Read(iprot thrift.TProtocol) error {
+	if _, err := iprot.ReadStructBegin(); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T read error: ", p), err)
+	}
+
+	for {
+		_, fieldTypeId, fieldId, err := iprot.ReadFieldBegin()
+		if err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T field %d read error: ", p, fieldId), err)
+		}
+		if fieldTypeId == thrift.STOP {
+			break
+		}
+		if err := iprot.Skip(fieldTypeId); err != nil {
+			return err
+		}
+		if err := iprot.ReadFieldEnd(); err != nil {
+			return err
+		}
+	}
+	if err := iprot.ReadStructEnd(); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T read struct end error: ", p), err)
+	}
+	return nil
+}
+
+func (p *KeyValueHiResult) Write(oprot thrift.TProtocol) error {
+	if err := oprot.WriteStructBegin("Hi_result"); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T write struct begin error: ", p), err)
+	}
+	if err := oprot.WriteFieldStop(); err != nil {
+		return thrift.PrependError("write field stop error: ", err)
+	}
+	if err := oprot.WriteStructEnd(); err != nil {
+		return thrift.PrependError("write struct stop error: ", err)
+	}
+	return nil
+}
+
+func (p *KeyValueHiResult) String() string {
+	if p == nil {
+		return "<nil>"
+	}
+	return fmt.Sprintf("KeyValueHiResult(%+v)", *p)
 }
