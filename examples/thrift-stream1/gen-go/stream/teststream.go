@@ -18,6 +18,9 @@ type TestStream interface {
 	// Parameters:
 	//  - Arg1
 	BothStream(arg1 *SStringStream) (r *SStringStream, err error)
+	// Parameters:
+	//  - Prefix
+	OutStream(prefix string) (r *SStringStream, err error)
 }
 
 type TestStreamClient struct {
@@ -123,6 +126,83 @@ func (p *TestStreamClient) recvBothStream() (value *SStringStream, err error) {
 	return
 }
 
+// Parameters:
+//  - Prefix
+func (p *TestStreamClient) OutStream(prefix string) (r *SStringStream, err error) {
+	if err = p.sendOutStream(prefix); err != nil {
+		return
+	}
+	return p.recvOutStream()
+}
+
+func (p *TestStreamClient) sendOutStream(prefix string) (err error) {
+	oprot := p.OutputProtocol
+	if oprot == nil {
+		oprot = p.ProtocolFactory.GetProtocol(p.Transport)
+		p.OutputProtocol = oprot
+	}
+	p.SeqId++
+	if err = oprot.WriteMessageBegin("OutStream", thrift.CALL, p.SeqId); err != nil {
+		return
+	}
+	args := TestStreamOutStreamArgs{
+		Prefix: prefix,
+	}
+	if err = args.Write(oprot); err != nil {
+		return
+	}
+	if err = oprot.WriteMessageEnd(); err != nil {
+		return
+	}
+	return oprot.Flush()
+}
+
+func (p *TestStreamClient) recvOutStream() (value *SStringStream, err error) {
+	iprot := p.InputProtocol
+	if iprot == nil {
+		iprot = p.ProtocolFactory.GetProtocol(p.Transport)
+		p.InputProtocol = iprot
+	}
+	method, mTypeId, seqId, err := iprot.ReadMessageBegin()
+	if err != nil {
+		return
+	}
+	if method != "OutStream" {
+		err = thrift.NewTApplicationException(thrift.WRONG_METHOD_NAME, "OutStream failed: wrong method name")
+		return
+	}
+	if p.SeqId != seqId {
+		err = thrift.NewTApplicationException(thrift.BAD_SEQUENCE_ID, "OutStream failed: out of sequence response")
+		return
+	}
+	if mTypeId == thrift.EXCEPTION {
+		error2 := thrift.NewTApplicationException(thrift.UNKNOWN_APPLICATION_EXCEPTION, "Unknown Exception")
+		var error3 error
+		error3, err = error2.Read(iprot)
+		if err != nil {
+			return
+		}
+		if err = iprot.ReadMessageEnd(); err != nil {
+			return
+		}
+		err = error3
+		return
+	}
+	if mTypeId != thrift.REPLY {
+		err = thrift.NewTApplicationException(thrift.INVALID_MESSAGE_TYPE_EXCEPTION, "OutStream failed: invalid message type")
+		return
+	}
+	result := TestStreamOutStreamResult{}
+	if err = result.Read(iprot); err != nil {
+		return
+	}
+	if err = iprot.ReadMessageEnd(); err != nil {
+		return
+	}
+	value = result.GetSuccess()
+	return
+}
+
 type TestStreamProcessor struct {
 	processorMap map[string]thrift.TProcessorFunction
 	handler      TestStream
@@ -143,9 +223,10 @@ func (p *TestStreamProcessor) ProcessorMap() map[string]thrift.TProcessorFunctio
 
 func NewTestStreamProcessor(handler TestStream) *TestStreamProcessor {
 
-	self2 := &TestStreamProcessor{handler: handler, processorMap: make(map[string]thrift.TProcessorFunction)}
-	self2.processorMap["BothStream"] = &testStreamProcessorBothStream{handler: handler}
-	return self2
+	self4 := &TestStreamProcessor{handler: handler, processorMap: make(map[string]thrift.TProcessorFunction)}
+	self4.processorMap["BothStream"] = &testStreamProcessorBothStream{handler: handler}
+	self4.processorMap["OutStream"] = &testStreamProcessorOutStream{handler: handler}
+	return self4
 }
 
 func (p *TestStreamProcessor) Process(iprot, oprot thrift.TProtocol) (success bool, err thrift.TException) {
@@ -158,12 +239,12 @@ func (p *TestStreamProcessor) Process(iprot, oprot thrift.TProtocol) (success bo
 	}
 	iprot.Skip(thrift.STRUCT)
 	iprot.ReadMessageEnd()
-	x3 := thrift.NewTApplicationException(thrift.UNKNOWN_METHOD, "Unknown function "+name)
+	x5 := thrift.NewTApplicationException(thrift.UNKNOWN_METHOD, "Unknown function "+name)
 	oprot.WriteMessageBegin(name, thrift.EXCEPTION, seqId)
-	x3.Write(oprot)
+	x5.Write(oprot)
 	oprot.WriteMessageEnd()
 	oprot.Flush()
-	return false, x3
+	return false, x5
 
 }
 
@@ -198,6 +279,54 @@ func (p *testStreamProcessorBothStream) Process(seqId int32, iprot, oprot thrift
 		result.Success = retval
 	}
 	if err2 = oprot.WriteMessageBegin("BothStream", thrift.REPLY, seqId); err2 != nil {
+		err = err2
+	}
+	if err2 = result.Write(oprot); err == nil && err2 != nil {
+		err = err2
+	}
+	if err2 = oprot.WriteMessageEnd(); err == nil && err2 != nil {
+		err = err2
+	}
+	if err2 = oprot.Flush(); err == nil && err2 != nil {
+		err = err2
+	}
+	if err != nil {
+		return
+	}
+	return true, err
+}
+
+type testStreamProcessorOutStream struct {
+	handler TestStream
+}
+
+func (p *testStreamProcessorOutStream) Process(seqId int32, iprot, oprot thrift.TProtocol) (success bool, err thrift.TException) {
+	args := TestStreamOutStreamArgs{}
+	if err = args.Read(iprot); err != nil {
+		iprot.ReadMessageEnd()
+		x := thrift.NewTApplicationException(thrift.PROTOCOL_ERROR, err.Error())
+		oprot.WriteMessageBegin("OutStream", thrift.EXCEPTION, seqId)
+		x.Write(oprot)
+		oprot.WriteMessageEnd()
+		oprot.Flush()
+		return false, err
+	}
+
+	iprot.ReadMessageEnd()
+	result := TestStreamOutStreamResult{}
+	var retval *SStringStream
+	var err2 error
+	if retval, err2 = p.handler.OutStream(args.Prefix); err2 != nil {
+		x := thrift.NewTApplicationException(thrift.INTERNAL_ERROR, "Internal error processing OutStream: "+err2.Error())
+		oprot.WriteMessageBegin("OutStream", thrift.EXCEPTION, seqId)
+		x.Write(oprot)
+		oprot.WriteMessageEnd()
+		oprot.Flush()
+		return true, err2
+	} else {
+		result.Success = retval
+	}
+	if err2 = oprot.WriteMessageBegin("OutStream", thrift.REPLY, seqId); err2 != nil {
 		err = err2
 	}
 	if err2 = result.Write(oprot); err == nil && err2 != nil {
@@ -415,4 +544,196 @@ func (p *TestStreamBothStreamResult) String() string {
 		return "<nil>"
 	}
 	return fmt.Sprintf("TestStreamBothStreamResult(%+v)", *p)
+}
+
+// Attributes:
+//  - Prefix
+type TestStreamOutStreamArgs struct {
+	Prefix string `thrift:"prefix,1" json:"prefix"`
+}
+
+func NewTestStreamOutStreamArgs() *TestStreamOutStreamArgs {
+	return &TestStreamOutStreamArgs{}
+}
+
+func (p *TestStreamOutStreamArgs) GetPrefix() string {
+	return p.Prefix
+}
+func (p *TestStreamOutStreamArgs) Read(iprot thrift.TProtocol) error {
+	if _, err := iprot.ReadStructBegin(); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T read error: ", p), err)
+	}
+
+	for {
+		_, fieldTypeId, fieldId, err := iprot.ReadFieldBegin()
+		if err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T field %d read error: ", p, fieldId), err)
+		}
+		if fieldTypeId == thrift.STOP {
+			break
+		}
+		switch fieldId {
+		case 1:
+			if err := p.readField1(iprot); err != nil {
+				return err
+			}
+		default:
+			if err := iprot.Skip(fieldTypeId); err != nil {
+				return err
+			}
+		}
+		if err := iprot.ReadFieldEnd(); err != nil {
+			return err
+		}
+	}
+	if err := iprot.ReadStructEnd(); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T read struct end error: ", p), err)
+	}
+	return nil
+}
+
+func (p *TestStreamOutStreamArgs) readField1(iprot thrift.TProtocol) error {
+	if v, err := iprot.ReadString(); err != nil {
+		return thrift.PrependError("error reading field 1: ", err)
+	} else {
+		p.Prefix = v
+	}
+	return nil
+}
+
+func (p *TestStreamOutStreamArgs) Write(oprot thrift.TProtocol) error {
+	if err := oprot.WriteStructBegin("OutStream_args"); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T write struct begin error: ", p), err)
+	}
+	if err := p.writeField1(oprot); err != nil {
+		return err
+	}
+	if err := oprot.WriteFieldStop(); err != nil {
+		return thrift.PrependError("write field stop error: ", err)
+	}
+	if err := oprot.WriteStructEnd(); err != nil {
+		return thrift.PrependError("write struct stop error: ", err)
+	}
+	return nil
+}
+
+func (p *TestStreamOutStreamArgs) writeField1(oprot thrift.TProtocol) (err error) {
+	if err := oprot.WriteFieldBegin("prefix", thrift.STRING, 1); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T write field begin error 1:prefix: ", p), err)
+	}
+	if err := oprot.WriteString(string(p.Prefix)); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T.prefix (1) field write error: ", p), err)
+	}
+	if err := oprot.WriteFieldEnd(); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T write field end error 1:prefix: ", p), err)
+	}
+	return err
+}
+
+func (p *TestStreamOutStreamArgs) String() string {
+	if p == nil {
+		return "<nil>"
+	}
+	return fmt.Sprintf("TestStreamOutStreamArgs(%+v)", *p)
+}
+
+// Attributes:
+//  - Success
+type TestStreamOutStreamResult struct {
+	Success *SStringStream `thrift:"success,0" json:"success,omitempty"`
+}
+
+func NewTestStreamOutStreamResult() *TestStreamOutStreamResult {
+	return &TestStreamOutStreamResult{}
+}
+
+var TestStreamOutStreamResult_Success_DEFAULT *SStringStream
+
+func (p *TestStreamOutStreamResult) GetSuccess() *SStringStream {
+	if !p.IsSetSuccess() {
+		return TestStreamOutStreamResult_Success_DEFAULT
+	}
+	return p.Success
+}
+func (p *TestStreamOutStreamResult) IsSetSuccess() bool {
+	return p.Success != nil
+}
+
+func (p *TestStreamOutStreamResult) Read(iprot thrift.TProtocol) error {
+	if _, err := iprot.ReadStructBegin(); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T read error: ", p), err)
+	}
+
+	for {
+		_, fieldTypeId, fieldId, err := iprot.ReadFieldBegin()
+		if err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T field %d read error: ", p, fieldId), err)
+		}
+		if fieldTypeId == thrift.STOP {
+			break
+		}
+		switch fieldId {
+		case 0:
+			if err := p.readField0(iprot); err != nil {
+				return err
+			}
+		default:
+			if err := iprot.Skip(fieldTypeId); err != nil {
+				return err
+			}
+		}
+		if err := iprot.ReadFieldEnd(); err != nil {
+			return err
+		}
+	}
+	if err := iprot.ReadStructEnd(); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T read struct end error: ", p), err)
+	}
+	return nil
+}
+
+func (p *TestStreamOutStreamResult) readField0(iprot thrift.TProtocol) error {
+	p.Success = &SStringStream{}
+	if err := p.Success.Read(iprot); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T error reading struct: ", p.Success), err)
+	}
+	return nil
+}
+
+func (p *TestStreamOutStreamResult) Write(oprot thrift.TProtocol) error {
+	if err := oprot.WriteStructBegin("OutStream_result"); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T write struct begin error: ", p), err)
+	}
+	if err := p.writeField0(oprot); err != nil {
+		return err
+	}
+	if err := oprot.WriteFieldStop(); err != nil {
+		return thrift.PrependError("write field stop error: ", err)
+	}
+	if err := oprot.WriteStructEnd(); err != nil {
+		return thrift.PrependError("write struct stop error: ", err)
+	}
+	return nil
+}
+
+func (p *TestStreamOutStreamResult) writeField0(oprot thrift.TProtocol) (err error) {
+	if p.IsSetSuccess() {
+		if err := oprot.WriteFieldBegin("success", thrift.STRUCT, 0); err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T write field begin error 0:success: ", p), err)
+		}
+		if err := p.Success.Write(oprot); err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T error writing struct: ", p.Success), err)
+		}
+		if err := oprot.WriteFieldEnd(); err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T write field end error 0:success: ", p), err)
+		}
+	}
+	return err
+}
+
+func (p *TestStreamOutStreamResult) String() string {
+	if p == nil {
+		return "<nil>"
+	}
+	return fmt.Sprintf("TestStreamOutStreamResult(%+v)", *p)
 }

@@ -18,5 +18,5 @@ service TestStream {
 */
   SStringStream BothStream(1: SStringStream arg1)
 
-
+  SStringStream OutStream(1: string prefix)
 }

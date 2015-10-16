@@ -16,6 +16,7 @@ type TChanTestStreamServer interface {
 	TChanTestStream
 
 	BothStream(ctx thrift.Context, call *TestStreamBothStreamInCall) error
+	OutStream(ctx thrift.Context, prefix string, call *TestStreamOutStreamInCall) error
 }
 
 // TChanTestStreamClient is the interface used to make remote calls.
@@ -23,6 +24,7 @@ type TChanTestStreamClient interface {
 	TChanTestStream
 
 	BothStream(ctx thrift.Context) (*TestStreamBothStreamOutCall, error)
+	OutStream(ctx thrift.Context, prefix string) (*TestStreamOutStreamOutCall, error)
 }
 
 type tchanTestStreamStreamingServer struct {
@@ -45,6 +47,7 @@ func (s *tchanTestStreamStreamingServer) Service() string {
 func (s *tchanTestStreamStreamingServer) Methods() []string {
 	return []string{
 		"BothStream",
+		"OutStream",
 	}
 }
 
@@ -58,6 +61,8 @@ func (s *tchanTestStreamStreamingServer) Handle(ctx thrift.Context, call *tchann
 	switch methodName {
 	case "TestStream::BothStream":
 		return s.handleBothStream(ctx, call, arg3Reader)
+	case "TestStream::OutStream":
+		return s.handleOutStream(ctx, call, arg3Reader)
 	default:
 		return fmt.Errorf("method %v not found in service %v", methodName, s.Service())
 	}
@@ -74,6 +79,36 @@ func (s *tchanTestStreamStreamingServer) handleBothStream(ctx thrift.Context, tc
 
 	err :=
 		s.handler.BothStream(ctx, call)
+	if err != nil {
+		// TODO: encode any Thrift exceptions here.
+		return err
+	}
+
+	if err := call.checkWriter(); err != nil {
+		return err
+	}
+
+	// TODO: we may want to Close the writer if it's not already closed.
+
+	return nil
+}
+
+func (s *tchanTestStreamStreamingServer) handleOutStream(ctx thrift.Context, tcall *tchannel.InboundCall, arg3Reader io.ReadCloser) error {
+	call := &TestStreamOutStreamInCall{
+		client: s.client,
+		call:   tcall,
+		ctx:    ctx,
+	}
+
+	var req TestStreamOutStreamArgs
+	if err := s.client.ReadStruct(arg3Reader, func(protocol athrift.TProtocol) error {
+		return req.Read(protocol)
+	}); err != nil {
+		return err
+	}
+
+	err :=
+		s.handler.OutStream(ctx, req.Prefix, call)
 	if err != nil {
 		// TODO: encode any Thrift exceptions here.
 		return err
@@ -109,6 +144,27 @@ func (c *tchanTestStreamStreamingClient) BothStream(ctx thrift.Context) (*TestSt
 	}
 
 	outCall.writer = writer
+
+	return outCall, nil
+}
+
+func (c *tchanTestStreamStreamingClient) OutStream(ctx thrift.Context, prefix string) (*TestStreamOutStreamOutCall, error) {
+	call, writer, err := c.client.StartCall(ctx, "TestStream::OutStream")
+	if err != nil {
+		return nil, err
+	}
+
+	outCall := &TestStreamOutStreamOutCall{
+		client: c.client,
+		call:   call,
+	}
+
+	args := TestStreamOutStreamArgs{
+		Prefix: prefix,
+	}
+	if err := c.client.WriteStruct(writer, &args); err != nil {
+		return nil, err
+	}
 
 	return outCall, nil
 }
@@ -286,6 +342,149 @@ func (c *TestStreamBothStreamOutCall) Read() (*SString, error) {
 // ResponseHeaders returns the response headers sent from the server. This will
 // block until server headers have been received.
 func (c *TestStreamBothStreamOutCall) ResponseHeaders() (map[string]string, error) {
+	if err := c.checkReader(); err != nil {
+		return nil, err
+	}
+	return c.responseHeaders, nil
+}
+
+// TestStreamOutStreamInCall is the object used to stream arguments and write
+// response headers for incoming calls.
+type TestStreamOutStreamInCall struct {
+	client thrift.TChanStreamingClient
+	call   *tchannel.InboundCall
+	ctx    thrift.Context
+
+	writer tchannel.ArgWriter
+}
+
+// SetResponseHeaders sets the response headers. This must be called before any
+// streaming responses are sent.
+func (c *TestStreamOutStreamInCall) SetResponseHeaders(headers map[string]string) error {
+	if c.writer != nil {
+		// arg3 is already being written, headers must be set first
+		return fmt.Errorf("cannot set headers after writing streaming responses")
+	}
+
+	c.ctx.SetResponseHeaders(headers)
+	return nil
+}
+
+func (c *TestStreamOutStreamInCall) writeResponseHeaders() error {
+	if c.writer != nil {
+		// arg3 is already being written, headers must be set first
+		return fmt.Errorf("cannot set headers after writing streaming responses")
+	}
+
+	// arg2 writer should be used to write headers
+	arg2Writer, err := c.call.Response().Arg2Writer()
+	if err != nil {
+		return err
+	}
+
+	headers := c.ctx.ResponseHeaders()
+	if err := c.client.WriteHeaders(arg2Writer, headers); err != nil {
+		return err
+	}
+
+	return arg2Writer.Close()
+}
+
+// checkWriter creates the arg3 writer if it has not been created.
+// Before the arg3 writer is created, response headers are sent.
+func (c *TestStreamOutStreamInCall) checkWriter() error {
+	if c.writer == nil {
+		if err := c.writeResponseHeaders(); err != nil {
+			return err
+		}
+
+		writer, err := c.call.Response().Arg3Writer()
+		if err != nil {
+			return err
+		}
+		c.writer = writer
+	}
+	return nil
+}
+
+// Write writes a result to the response stream. The written items may not
+// be sent till Flush or Done is called.
+func (c *TestStreamOutStreamInCall) Write(arg *SString) error {
+	if err := c.checkWriter(); err != nil {
+		return err
+	}
+	return c.client.WriteStreamStruct(c.writer, arg)
+}
+
+// Flush flushes headers (if they have not yet been sent) and any written results.
+func (c *TestStreamOutStreamInCall) Flush() error {
+	if err := c.checkWriter(); err != nil {
+		return err
+	}
+	return c.writer.Flush()
+}
+
+// Done closes the response stream and should be called after all results have been written.
+func (c *TestStreamOutStreamInCall) Done() error {
+	if err := c.checkWriter(); err != nil {
+		return err
+	}
+	return c.writer.Close()
+}
+
+// TestStreamOutStreamOutCall is the object used to stream arguments/results and
+// read response headers for outgoing calls.
+type TestStreamOutStreamOutCall struct {
+	client          thrift.TChanStreamingClient
+	call            *tchannel.OutboundCall
+	responseHeaders map[string]string
+	reader          io.ReadCloser
+}
+
+func (c *TestStreamOutStreamOutCall) checkReader() error {
+	if c.reader == nil {
+		arg2Reader, err := c.call.Response().Arg2Reader()
+		if err != nil {
+			return err
+		}
+
+		c.responseHeaders, err = c.client.ReadHeaders(arg2Reader)
+		if err != nil {
+			return err
+		}
+		if err := arg2Reader.Close(); err != nil {
+			return err
+		}
+
+		reader, err := c.call.Response().Arg3Reader()
+		if err != nil {
+			return err
+		}
+
+		c.reader = reader
+	}
+	return nil
+}
+
+// Read returns the next result, if any is available. If there are no more
+// results left, it will return io.EOF.
+func (c *TestStreamOutStreamOutCall) Read() (*SString, error) {
+	if err := c.checkReader(); err != nil {
+		return nil, err
+	}
+	var res SString
+	if err := c.client.ReadStreamStruct(c.reader, func(protocol athrift.TProtocol) error {
+		return res.Read(protocol)
+	}); err != nil {
+		return nil, err
+	}
+
+	return &res, nil
+}
+
+// ResponseHeaders returns the response headers sent from the server. This will
+// block until server headers have been received.
+func (c *TestStreamOutStreamOutCall) ResponseHeaders() (map[string]string, error) {
 	if err := c.checkReader(); err != nil {
 		return nil, err
 	}

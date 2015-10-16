@@ -45,6 +45,23 @@ func runClient(hostPort string) error {
 	ctx, cancel := thrift.NewContext(10 * time.Second)
 	defer cancel()
 
+	go func() {
+		call, err := client.OutStream(ctx, "prashant")
+		if err != nil {
+			log.Fatalf("client OutStream failed: %v", err)
+		}
+		for {
+			res, err := call.Read()
+			if err == io.EOF {
+				return
+			}
+			if err != nil {
+				log.Fatalf("OutStream read failed: %v", err)
+			}
+			log.Printf("OutStream got result: %v", res)
+		}
+	}()
+
 	call, err := client.BothStream(ctx)
 	if err != nil {
 		return fmt.Errorf("client.Stream err: %v", err)
@@ -107,5 +124,19 @@ func (handler) BothStream(ctx thrift.Context, call *stream.TestStreamBothStreamI
 		}
 	}
 
+	return nil
+}
+
+func (handler) OutStream(ctx thrift.Context, prefix string, call *stream.TestStreamOutStreamInCall) error {
+	for i := 0; i < 100; i++ {
+		time.Sleep(10 * time.Millisecond)
+		s := &stream.SString{fmt.Sprintf("out stram with prefix %v: %v", prefix, i)}
+		if err := call.Write(s); err != nil {
+			log.Fatalf("server: Write got err: %v", err)
+		}
+		if err := call.Flush(); err != nil {
+			log.Fatalf("server: Flush got err: %v", err)
+		}
+	}
 	return nil
 }
