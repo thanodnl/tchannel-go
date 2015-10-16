@@ -15,6 +15,18 @@ type TChanTCollector interface {
 	Submit(ctx thrift.Context, span *Span) (*Response, error)
 }
 
+// TChanTCollectorServer is the interface that must be implemented by a handler.
+type TChanTCollectorServer interface {
+	MultiSubmit(ctx thrift.Context, spans []*Span) ([]*Response, error)
+	Submit(ctx thrift.Context, span *Span) (*Response, error)
+}
+
+// TChanTCollectorClient is the interface is used to make remote calls.
+type TChanTCollectorClient interface {
+	MultiSubmit(ctx thrift.Context, spans []*Span) ([]*Response, error)
+	Submit(ctx thrift.Context, span *Span) (*Response, error)
+}
+
 // Implementation of a client and service handler.
 
 type tchanTCollectorClient struct {

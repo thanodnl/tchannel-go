@@ -34,35 +34,6 @@ import (
   "github.com/uber/tchannel-go/thrift"
 )
 
-{{ range .Services }}
-// {{ .ServerInterface }} is the interface that must be implemented by a handler.
-type {{ .ServerInterface }} interface {
-  {{ if .HasStreamingExtends }}
-    {{ .ExtendsService.ServerInterface }}
-  {{ else }}
-    {{ .Interface }}
-  {{ end }}
-
-	{{ range .StreamingMethods }}
-		{{ .Name }}({{ .StreamingServerArgList }}) {{ .StreamingServerRetType }}
-	{{ end }}
-}
-
-// {{ .ClientInterface }} is the interface used to make remote calls.
-type {{ .ClientInterface }} interface {
-  {{ if .HasStreamingExtends }}
-    {{ .ExtendsService.ClientInterface }}
-  {{ else }}
-    {{ .Interface }}
-  {{ end }}
-
-  {{ range .StreamingMethods }}
-    {{ .Name }}({{ .StreamingClientArgList }}) {{ .StreamingClientRetType }}
-  {{ end }}
-}
-{{ end }}
-
-
 {{ range $svc := .Services }}
 
 type {{ .StreamingServerStruct }} struct {

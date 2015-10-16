@@ -41,13 +41,8 @@ type ClientOptions struct {
 	HostPort string
 }
 
-type TChanMultiClient interface {
-	TChanClient
-	TChanStreamingClient
-}
-
 // NewClient returns a Client that makes calls over the given tchannel to the given Hyperbahn service.
-func NewClient(ch *tchannel.Channel, serviceName string, opts *ClientOptions) TChanMultiClient {
+func NewClient(ch *tchannel.Channel, serviceName string, opts *ClientOptions) TChanStreamingClient {
 	client := &client{
 		sc:          ch.GetSubChannel(serviceName),
 		serviceName: serviceName,

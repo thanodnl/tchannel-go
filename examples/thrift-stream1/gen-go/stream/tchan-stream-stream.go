@@ -11,36 +11,6 @@ import (
 	"github.com/uber/tchannel-go/thrift"
 )
 
-// TChanTestStreamServer is the interface that must be implemented by a handler.
-type TChanTestStreamServer interface {
-	TChanTestStream
-
-	BothStream(ctx thrift.Context, call *TestStreamBothStreamInCall) error
-	OutStream(ctx thrift.Context, prefix string, call *TestStreamOutStreamInCall) error
-}
-
-// TChanTestStreamClient is the interface used to make remote calls.
-type TChanTestStreamClient interface {
-	TChanTestStream
-
-	BothStream(ctx thrift.Context) (*TestStreamBothStreamOutCall, error)
-	OutStream(ctx thrift.Context, prefix string) (*TestStreamOutStreamOutCall, error)
-}
-
-// TChanTestStream2Server is the interface that must be implemented by a handler.
-type TChanTestStream2Server interface {
-	TChanTestStreamServer
-
-	OutStream2(ctx thrift.Context, prefix string, call *TestStream2OutStream2InCall) error
-}
-
-// TChanTestStream2Client is the interface used to make remote calls.
-type TChanTestStream2Client interface {
-	TChanTestStreamClient
-
-	OutStream2(ctx thrift.Context, prefix string) (*TestStream2OutStream2OutCall, error)
-}
-
 type tchanTestStreamStreamingServer struct {
 	handler TChanTestStreamServer
 

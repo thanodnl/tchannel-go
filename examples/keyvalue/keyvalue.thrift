@@ -3,7 +3,7 @@ service baseService {
 }
 
 exception KeyNotFound {
-  1: string key
+  1: required string key
 }
 
 exception InvalidKey {}
@@ -19,6 +19,7 @@ service KeyValue extends baseService {
   void Set(1: string key, 2: string value) throws (
     1: InvalidKey invalidKey
   )
+  void Hi()
 }
 
 // Returned when the user is not authorized for the Admin service.

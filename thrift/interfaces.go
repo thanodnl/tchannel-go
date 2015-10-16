@@ -63,7 +63,9 @@ type TChanStreamingServer interface {
 	Handle(ctx Context, call *tchannel.InboundCall) error
 }
 
+// TChanStreamingClient is abstracts calling Thrift endpoints which require streaming.
 type TChanStreamingClient interface {
+	// StartCall starts starts the call to the given endpoint, and returns
 	StartCall(ctx Context, name string) (*tchannel.OutboundCall, tchannel.ArgWriter, error)
 
 	// TODO(prashant): Move all methods below this out of this interface.

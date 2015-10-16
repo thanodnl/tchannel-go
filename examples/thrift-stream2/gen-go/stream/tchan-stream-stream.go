@@ -11,34 +11,6 @@ import (
 	"github.com/uber/tchannel-go/thrift"
 )
 
-// TChanUniqCServer is the interface that must be implemented by a handler.
-type TChanUniqCServer interface {
-	TChanUniqC
-
-	Run(ctx thrift.Context, call *UniqCRunInCall) error
-}
-
-// TChanUniqCClient is the interface used to make remote calls.
-type TChanUniqCClient interface {
-	TChanUniqC
-
-	Run(ctx thrift.Context) (*UniqCRunOutCall, error)
-}
-
-// TChanUniqC2Server is the interface that must be implemented by a handler.
-type TChanUniqC2Server interface {
-	TChanUniqCServer
-
-	Fakerun(ctx thrift.Context, call *UniqC2FakerunInCall) error
-}
-
-// TChanUniqC2Client is the interface used to make remote calls.
-type TChanUniqC2Client interface {
-	TChanUniqCClient
-
-	Fakerun(ctx thrift.Context) (*UniqC2FakerunOutCall, error)
-}
-
 type tchanUniqCStreamingServer struct {
 	handler TChanUniqCServer
 

@@ -16,6 +16,20 @@ type TChanAdmin interface {
 	ClearAll(ctx thrift.Context) error
 }
 
+// TChanAdminServer is the interface that must be implemented by a handler.
+type TChanAdminServer interface {
+	TChanBaseServiceServer
+
+	ClearAll(ctx thrift.Context) error
+}
+
+// TChanAdminClient is the interface is used to make remote calls.
+type TChanAdminClient interface {
+	TChanBaseServiceClient
+
+	ClearAll(ctx thrift.Context) error
+}
+
 type TChanKeyValue interface {
 	TChanBaseService
 
@@ -23,7 +37,33 @@ type TChanKeyValue interface {
 	Set(ctx thrift.Context, key string, value string) error
 }
 
+// TChanKeyValueServer is the interface that must be implemented by a handler.
+type TChanKeyValueServer interface {
+	TChanBaseServiceServer
+
+	Get(ctx thrift.Context, key string) (string, error)
+	Set(ctx thrift.Context, key string, value string) error
+}
+
+// TChanKeyValueClient is the interface is used to make remote calls.
+type TChanKeyValueClient interface {
+	TChanBaseServiceClient
+
+	Get(ctx thrift.Context, key string) (string, error)
+	Set(ctx thrift.Context, key string, value string) error
+}
+
 type TChanBaseService interface {
+	HealthCheck(ctx thrift.Context) (string, error)
+}
+
+// TChanBaseServiceServer is the interface that must be implemented by a handler.
+type TChanBaseServiceServer interface {
+	HealthCheck(ctx thrift.Context) (string, error)
+}
+
+// TChanBaseServiceClient is the interface is used to make remote calls.
+type TChanBaseServiceClient interface {
 	HealthCheck(ctx thrift.Context) (string, error)
 }
 

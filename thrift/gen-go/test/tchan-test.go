@@ -14,7 +14,29 @@ type TChanSecondService interface {
 	Echo(ctx thrift.Context, arg string) (string, error)
 }
 
+// TChanSecondServiceServer is the interface that must be implemented by a handler.
+type TChanSecondServiceServer interface {
+	Echo(ctx thrift.Context, arg string) (string, error)
+}
+
+// TChanSecondServiceClient is the interface is used to make remote calls.
+type TChanSecondServiceClient interface {
+	Echo(ctx thrift.Context, arg string) (string, error)
+}
+
 type TChanSimpleService interface {
+	Call(ctx thrift.Context, arg *Data) (*Data, error)
+	Simple(ctx thrift.Context) error
+}
+
+// TChanSimpleServiceServer is the interface that must be implemented by a handler.
+type TChanSimpleServiceServer interface {
+	Call(ctx thrift.Context, arg *Data) (*Data, error)
+	Simple(ctx thrift.Context) error
+}
+
+// TChanSimpleServiceClient is the interface is used to make remote calls.
+type TChanSimpleServiceClient interface {
 	Call(ctx thrift.Context, arg *Data) (*Data, error)
 	Simple(ctx thrift.Context) error
 }

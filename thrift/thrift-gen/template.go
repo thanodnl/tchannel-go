@@ -23,6 +23,35 @@ type {{ .Interface }} interface {
 		{{ .Name }}({{ .ArgList }}) {{ .RetType }}
 	{{ end }}
 }
+
+// {{ .ServerInterface }} is the interface that must be implemented by a handler.
+type {{ .ServerInterface }} interface {
+  {{ if .HasExtends }}
+    {{ .ExtendsService.ServerInterface }}
+  {{ end }}
+
+	{{ range .Methods }}
+		{{ .Name }}({{ .ArgList }}) {{ .RetType }}
+	{{ end }}
+	{{ range .StreamingMethods }}
+		{{ .Name }}({{ .StreamingServerArgList }}) {{ .StreamingServerRetType }}
+	{{ end }}
+}
+
+// {{ .ClientInterface}} is the interface is used to make remote calls.
+type {{ .ClientInterface}} interface {
+	{{ if .HasExtends }}
+		{{ .ExtendsService.ClientInterface }}
+	{{ end }}
+
+	{{ range .Methods }}
+		{{ .Name }}({{ .ArgList }}) {{ .RetType }}
+	{{ end }}
+	{{ range .StreamingMethods }}
+    {{ .Name }}({{ .StreamingClientArgList }}) {{ .StreamingClientRetType }}
+  {{ end }}
+}
+
 {{ end }}
 
 // Implementation of a client and service handler.

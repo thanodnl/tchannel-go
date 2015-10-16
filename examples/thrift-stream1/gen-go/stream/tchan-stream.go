@@ -13,8 +13,34 @@ import (
 type TChanTestStream interface {
 }
 
+// TChanTestStreamServer is the interface that must be implemented by a handler.
+type TChanTestStreamServer interface {
+	BothStream(ctx thrift.Context, call *TestStreamBothStreamInCall) error
+	OutStream(ctx thrift.Context, prefix string, call *TestStreamOutStreamInCall) error
+}
+
+// TChanTestStreamClient is the interface is used to make remote calls.
+type TChanTestStreamClient interface {
+	BothStream(ctx thrift.Context) (*TestStreamBothStreamOutCall, error)
+	OutStream(ctx thrift.Context, prefix string) (*TestStreamOutStreamOutCall, error)
+}
+
 type TChanTestStream2 interface {
 	TChanTestStream
+}
+
+// TChanTestStream2Server is the interface that must be implemented by a handler.
+type TChanTestStream2Server interface {
+	TChanTestStreamServer
+
+	OutStream2(ctx thrift.Context, prefix string, call *TestStream2OutStream2InCall) error
+}
+
+// TChanTestStream2Client is the interface is used to make remote calls.
+type TChanTestStream2Client interface {
+	TChanTestStreamClient
+
+	OutStream2(ctx thrift.Context, prefix string) (*TestStream2OutStream2OutCall, error)
 }
 
 // Implementation of a client and service handler.

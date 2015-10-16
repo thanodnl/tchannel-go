@@ -13,8 +13,32 @@ import (
 type TChanUniqC interface {
 }
 
+// TChanUniqCServer is the interface that must be implemented by a handler.
+type TChanUniqCServer interface {
+	Run(ctx thrift.Context, call *UniqCRunInCall) error
+}
+
+// TChanUniqCClient is the interface is used to make remote calls.
+type TChanUniqCClient interface {
+	Run(ctx thrift.Context) (*UniqCRunOutCall, error)
+}
+
 type TChanUniqC2 interface {
 	TChanUniqC
+}
+
+// TChanUniqC2Server is the interface that must be implemented by a handler.
+type TChanUniqC2Server interface {
+	TChanUniqCServer
+
+	Fakerun(ctx thrift.Context, call *UniqC2FakerunInCall) error
+}
+
+// TChanUniqC2Client is the interface is used to make remote calls.
+type TChanUniqC2Client interface {
+	TChanUniqCClient
+
+	Fakerun(ctx thrift.Context) (*UniqC2FakerunOutCall, error)
 }
 
 // Implementation of a client and service handler.

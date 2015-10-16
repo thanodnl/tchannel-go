@@ -14,6 +14,16 @@ type TChanBase interface {
 	BaseCall(ctx thrift.Context) error
 }
 
+// TChanBaseServer is the interface that must be implemented by a handler.
+type TChanBaseServer interface {
+	BaseCall(ctx thrift.Context) error
+}
+
+// TChanBaseClient is the interface is used to make remote calls.
+type TChanBaseClient interface {
+	BaseCall(ctx thrift.Context) error
+}
+
 type TChanFirst interface {
 	TChanBase
 
@@ -22,7 +32,35 @@ type TChanFirst interface {
 	Healthcheck(ctx thrift.Context) (*HealthCheckRes, error)
 }
 
+// TChanFirstServer is the interface that must be implemented by a handler.
+type TChanFirstServer interface {
+	TChanBaseServer
+
+	AppError(ctx thrift.Context) error
+	Echo(ctx thrift.Context, msg string) (string, error)
+	Healthcheck(ctx thrift.Context) (*HealthCheckRes, error)
+}
+
+// TChanFirstClient is the interface is used to make remote calls.
+type TChanFirstClient interface {
+	TChanBaseClient
+
+	AppError(ctx thrift.Context) error
+	Echo(ctx thrift.Context, msg string) (string, error)
+	Healthcheck(ctx thrift.Context) (*HealthCheckRes, error)
+}
+
 type TChanSecond interface {
+	Test(ctx thrift.Context) error
+}
+
+// TChanSecondServer is the interface that must be implemented by a handler.
+type TChanSecondServer interface {
+	Test(ctx thrift.Context) error
+}
+
+// TChanSecondClient is the interface is used to make remote calls.
+type TChanSecondClient interface {
 	Test(ctx thrift.Context) error
 }
 

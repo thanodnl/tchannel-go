@@ -23,20 +23,18 @@ package main
 import (
 	"fmt"
 	"log"
-	"os"
 	"sync"
 	"unicode"
 	"unicode/utf8"
 
 	"github.com/uber/tchannel-go"
 	"github.com/uber/tchannel-go/examples/keyvalue/gen-go/keyvalue"
-	"github.com/uber/tchannel-go/hyperbahn"
 	"github.com/uber/tchannel-go/thrift"
 )
 
 func main() {
 	// Create a TChannel and register the Thrift handlers.
-	ch, err := tchannel.NewChannel("keyvalue", nil)
+	ch, err := tchannel.NewChannel("keyvalue", &tchannel.ChannelOptions{Logger: tchannel.SimpleLogger})
 	if err != nil {
 		log.Fatalf("Failed to create tchannel: %v", err)
 	}
@@ -56,20 +54,6 @@ func main() {
 	// We use port 0 which asks the OS to assign any available port.
 	// Static port allocations are not necessary for services on Hyperbahn.
 	ch.ListenAndServe(fmt.Sprintf("%v:%v", ip, 0))
-
-	// Advertising registers this service instance with Hyperbahn so
-	// that Hyperbahn can route requests for "keyvalue" to us.
-	config := hyperbahn.Configuration{InitialNodes: os.Args[1:]}
-	if len(config.InitialNodes) == 0 {
-		log.Fatalf("No Autobahn nodes to advertise with")
-	}
-	client, err := hyperbahn.NewClient(ch, config, nil)
-	if err != nil {
-		log.Fatalf("hyperbahn.NewClient failed: %v", err)
-	}
-	if err := client.Advertise(); err != nil {
-		log.Fatalf("Hyperbahn advertise failed: %v", err)
-	}
 
 	// The service is now started up, run it till we receive a ctrl-c.
 	log.Printf("KeyValue service has started on %v", ch.PeerInfo().HostPort)
