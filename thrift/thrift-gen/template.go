@@ -123,7 +123,7 @@ func (c *{{ $svc.ClientStruct }}) {{ .Name }}({{ .StreamingClientArgList }}) {{ 
     return nil, err
   }
 
-  outCall := &{{ .OutCallName }}{
+  outCall := &{{ .OutCallImplementation }}{
     c: c.client,
     call: call,
   }
@@ -284,7 +284,7 @@ func (s *{{ .ServerStruct }}) Handle(ctx {{ contextType }}, methodName string, p
 {{ range .StreamingMethods }}
 
 func (s *{{ $svc.ServerStruct }}) handle{{ .Name }}(ctx thrift.Context, tcall *tchannel.InboundCall, arg3Reader io.ReadCloser) error {
-  call := &{{ .InCallName }}{
+  call := &{{ .InCallImplementation }}{
     c:    s.common,
     call: tcall,
     ctx:  ctx,
@@ -332,9 +332,34 @@ func (s *{{ $svc.ServerStruct }}) handle{{ .Name }}(ctx thrift.Context, tcall *t
 
 
 {{ range .StreamingMethods }}
-  // {{ .InCallName }} is the object used to stream arguments and write
-  // response headers for incoming calls.
-  type {{ .InCallName }} struct {
+	// {{ .InCallName }} is the object used to stream arguments and write
+	// response headers for incoming calls.
+	type {{ .InCallName }} interface {
+		{{ if .StreamingArg }}
+			// Read returns the next argument, if any is available. If there are no more arguments left,
+			// it will return io.EOF.
+			Read() (*{{ .StreamingArgType }}, error)
+		{{ end }}
+
+		// SetResponseHeaders sets the response headers. This must be called before any
+	  // streaming responses are sent.
+		SetResponseHeaders(headers map[string]string) error
+
+		{{ if .StreamingRes }}
+		  // Write writes a result to the response stream. The written items may not
+		  // be sent till Flush or Done is called.
+			Write(arg *{{ .StreamingResType }}) error
+
+			// Flush flushes headers (if they have not yet been sent) and any written results.
+			Flush() error
+
+		  // Done closes the response stream and should be called after all results have been written.
+			Done() error
+		{{ end }}
+	}
+
+  // {{ .InCallImplementation }} is the implementation for {{ .InCallName }}.
+  type {{ .InCallImplementation }} struct {
 		c thrift.TCommon
 		call   *tchannel.InboundCall
     ctx    thrift.Context
@@ -348,9 +373,7 @@ func (s *{{ $svc.ServerStruct }}) handle{{ .Name }}(ctx thrift.Context, tcall *t
 
 	{{ if .StreamingArg }}
 
-	// Read returns the next argument, if any is available. If there are no more
-  // arguments left, it will return io.EOF.
-	func (c *{{ .InCallName }}) Read() (*{{ .StreamingArgType }}, error) {
+	func (c *{{ .InCallImplementation }}) Read() (*{{ .StreamingArgType }}, error) {
 		var req {{ .StreamingArgType }}
 		if err := c.c.ReadStreamStruct(c.reader, func(protocol athrift.TProtocol) error {
 			return req.Read(protocol)
@@ -363,9 +386,7 @@ func (s *{{ $svc.ServerStruct }}) handle{{ .Name }}(ctx thrift.Context, tcall *t
 
   {{ end }}
 
-  // SetResponseHeaders sets the response headers. This must be called before any
-  // streaming responses are sent.
-	func (c *{{ .InCallName }}) SetResponseHeaders(headers map[string]string) error {
+	func (c *{{ .InCallImplementation }}) SetResponseHeaders(headers map[string]string) error {
 		if c.writer != nil {
 			// arg3 is already being written, headers must be set first
 			return fmt.Errorf("cannot set headers after writing streaming responses")
@@ -375,7 +396,7 @@ func (s *{{ $svc.ServerStruct }}) handle{{ .Name }}(ctx thrift.Context, tcall *t
     return nil
 	}
 
-  func (c *{{ .InCallName }}) writeResponseHeaders() error {
+  func (c *{{ .InCallImplementation }}) writeResponseHeaders() error {
 		if c.writer != nil {
 			// arg3 is already being written, headers must be set first
 			return fmt.Errorf("cannot set headers after writing streaming responses")
@@ -397,7 +418,7 @@ func (s *{{ $svc.ServerStruct }}) handle{{ .Name }}(ctx thrift.Context, tcall *t
 
   // checkWriter creates the arg3 writer if it has not been created.
   // Before the arg3 writer is created, response headers are sent.
-	func (c *{{ .InCallName }}) checkWriter() error {
+	func (c *{{ .InCallImplementation }}) checkWriter() error {
 		if c.writer == nil {
       if err := c.writeResponseHeaders(); err != nil {
         return err
@@ -414,9 +435,7 @@ func (s *{{ $svc.ServerStruct }}) handle{{ .Name }}(ctx thrift.Context, tcall *t
 
 	{{ if .StreamingRes }}
 
-  // Write writes a result to the response stream. The written items may not
-  // be sent till Flush or Done is called.
-	func (c *{{ .InCallName }}) Write(arg *{{ .StreamingResType }}) error {
+	func (c *{{ .InCallImplementation }}) Write(arg *{{ .StreamingResType }}) error {
 		if err := c.checkWriter(); err != nil {
 			return err
 		}
@@ -424,7 +443,7 @@ func (s *{{ $svc.ServerStruct }}) handle{{ .Name }}(ctx thrift.Context, tcall *t
 	}
 
   // Flush flushes headers (if they have not yet been sent) and any written results.
-	func (c *{{ .InCallName }}) Flush() error {
+	func (c *{{ .InCallImplementation }}) Flush() error {
 		if err := c.checkWriter(); err != nil {
 			return err
 		}
@@ -432,7 +451,7 @@ func (s *{{ $svc.ServerStruct }}) handle{{ .Name }}(ctx thrift.Context, tcall *t
 	}
 
   // Done closes the response stream and should be called after all results have been written.
-	func (c *{{ .InCallName }}) Done() error {
+	func (c *{{ .InCallImplementation }}) Done() error {
 		if err := c.checkWriter(); err != nil {
 			return err
 		}
@@ -441,9 +460,38 @@ func (s *{{ $svc.ServerStruct }}) handle{{ .Name }}(ctx thrift.Context, tcall *t
 
 	{{ end }}
 
+
   // {{ .OutCallName }} is the object used to stream arguments/results and
   // read response headers for outgoing calls.
-	type {{ .OutCallName }} struct {
+	type {{ .OutCallName }} interface {
+		{{ if .StreamingArg }}
+		  // Write writes an argument to the request stream. The written items may not
+		  // be sent till Flush or Done is called.
+			Write(arg *{{ .StreamingArgType }}) error
+
+		  // Flush flushes all written arguments.
+			Flush() error
+
+		  // Done closes the request stream and should be called after all arguments have been written.
+		  {{ if .OutDoneHasReturn }}
+		  // Done also returns the non-streaming response
+		  {{ end }}
+			Done() {{ .OutDoneRetType }}
+		{{ end }}
+
+		{{ if .StreamingRes}}
+		  // Read returns the next result, if any is available. If there are no more
+		  // results left, it will return io.EOF.
+			Read() (*{{ .StreamingResType }}, error)
+
+			// ResponseHeaders returns the response headers sent from the server. This will
+		  // block until server headers have been received.
+			ResponseHeaders() (map[string]string, error)
+		{{ end }}
+	}
+
+  // {{ .OutCallImplementation }} is the implementation for {{ .OutCallName }}.
+	type {{ .OutCallImplementation }} struct {
 		c thrift.TCommon
 		call *tchannel.OutboundCall
 		responseHeaders map[string]string
@@ -456,12 +504,12 @@ func (s *{{ $svc.ServerStruct }}) handle{{ .Name }}(ctx thrift.Context, tcall *t
 	{{ if .StreamingArg }}
   // Write writes an argument to the request stream. The written items may not
   // be sent till Flush or Done is called.
-	func (c *{{ .OutCallName }}) Write(arg *{{ .StreamingArgType }}) error {
+	func (c *{{ .OutCallImplementation }}) Write(arg *{{ .StreamingArgType }}) error {
 		return c.c.WriteStreamStruct(c.writer, arg)
 	}
 
   // Flush flushes all written arguments.
-	func (c *{{ .OutCallName }}) Flush() error {
+	func (c *{{ .OutCallImplementation }}) Flush() error {
 		return c.writer.Flush()
 	}
 
@@ -470,7 +518,7 @@ func (s *{{ $svc.ServerStruct }}) handle{{ .Name }}(ctx thrift.Context, tcall *t
   {{ if .OutDoneHasReturn }}
   // Done also returns the non-streaming response
   {{ end }}
-	func (c *{{ .OutCallName }}) Done() {{ .OutDoneRetType }} {
+	func (c *{{ .OutCallImplementation }}) Done() {{ .OutDoneRetType }} {
 		if err := c.writer.Close(); err != nil {
       return {{ .OutDoneWrapErr "err" }}
 		}
@@ -497,7 +545,7 @@ func (s *{{ $svc.ServerStruct }}) handle{{ .Name }}(ctx thrift.Context, tcall *t
 	}
 	{{ end }}
 
-  func (c *{{ .OutCallName }}) checkReader() error {
+  func (c *{{ .OutCallImplementation }}) checkReader() error {
 		if c.reader == nil {
 			arg2Reader, err := c.call.Response().Arg2Reader()
 			if err != nil {
@@ -523,9 +571,7 @@ func (s *{{ $svc.ServerStruct }}) handle{{ .Name }}(ctx thrift.Context, tcall *t
 	}
 
 	{{ if .StreamingRes}}
-  // Read returns the next result, if any is available. If there are no more
-  // results left, it will return io.EOF.
-	func (c *{{ .OutCallName }}) Read() (*{{ .StreamingResType }}, error) {
+	func (c *{{ .OutCallImplementation }}) Read() (*{{ .StreamingResType }}, error) {
     if err := c.checkReader(); err != nil {
       return nil, err
     }
@@ -540,9 +586,7 @@ func (s *{{ $svc.ServerStruct }}) handle{{ .Name }}(ctx thrift.Context, tcall *t
 	}
 	{{ end }}
 
-  // ResponseHeaders returns the response headers sent from the server. This will
-  // block until server headers have been received.
-  func (c *{{ .OutCallName }}) ResponseHeaders() (map[string]string, error) {
+  func (c *{{ .OutCallImplementation }}) ResponseHeaders() (map[string]string, error) {
 		if err := c.checkReader(); err != nil {
 			return nil, err
 		}

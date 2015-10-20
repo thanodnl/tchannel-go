@@ -100,14 +100,24 @@ func (m *Method) StreamingCallList(reqStruct string, callName string) string {
 	return strings.Join(args, ", ")
 }
 
-// InCallName is the name of the call object for inbound calls.
+// InCallName is the name of the call interface for inbound calls.
 func (m *Method) InCallName() string {
 	return m.argResPrefix() + "InCall"
 }
 
-// OutCallName is the name of the call object for outbound calls.
+// InCallImplementation is the name of the call implementation for inbound calls.
+func (m *Method) InCallImplementation() string {
+	return goPrivateName(m.InCallName())
+}
+
+// OutCallName is the name of the call interface for outbound calls.
 func (m *Method) OutCallName() string {
 	return m.argResPrefix() + "OutCall"
+}
+
+// OutCallImplementation is the name of the call implementaion for outbound calls.
+func (m *Method) OutCallImplementation() string {
+	return goPrivateName(m.OutCallName())
 }
 
 // StreamingServerHasResult returns whether the server interface has a result in the return
@@ -131,17 +141,17 @@ func (m *Method) StreamingServerRetType() string {
 // Otherwise, all the arguments are declared before the call object.
 func (m *Method) StreamingServerArgList() string {
 	if m.StreamingArg() {
-		return fmt.Sprintf("%v, %v", "ctx "+contextType(), "call *"+m.InCallName())
+		return fmt.Sprintf("%v, %v", "ctx "+contextType(), "call "+m.InCallName())
 	}
 
 	// For non-streaming, we take all the standard arguments, but append the in call name.
-	return strings.Join(append(m.args(), "call *"+m.InCallName()), ", ")
+	return strings.Join(append(m.args(), "call "+m.InCallName()), ", ")
 }
 
 // StreamingClientRetType is the return type for this method in the client interface.
 func (m *Method) StreamingClientRetType() string {
 	// This must be a streaming method, so we always return a call and an error.
-	return fmt.Sprintf("(*%v, %v)", m.OutCallName(), "error")
+	return fmt.Sprintf("(%v, %v)", m.OutCallName(), "error")
 }
 
 // StreamingClientArgList is the type of arguments for the given method in the client interface.
@@ -176,4 +186,8 @@ func (m *Method) OutDoneWrapErr(err string) string {
 		return "nil, " + err
 	}
 	return err
+}
+
+func goPrivateName(name string) string {
+	return strings.ToLower(name[0:1]) + name[1:]
 }
