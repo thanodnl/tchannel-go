@@ -22,12 +22,12 @@ type TChanUniqC interface {
 
 // TChanUniqCServer is the interface that must be implemented by a handler.
 type TChanUniqCServer interface {
-	Run(ctx thrift.Context, call *UniqCRunInCall) error
+	Run(ctx thrift.Context, call UniqCRunInCall) error
 }
 
 // TChanUniqCClient is the interface is used to make remote calls.
 type TChanUniqCClient interface {
-	Run(ctx thrift.Context) (*UniqCRunOutCall, error)
+	Run(ctx thrift.Context) (UniqCRunOutCall, error)
 }
 
 // TChanUniqC2 is the interface containing non-streaming methods.
@@ -39,14 +39,14 @@ type TChanUniqC2 interface {
 type TChanUniqC2Server interface {
 	TChanUniqCServer
 
-	Fakerun(ctx thrift.Context, call *UniqC2FakerunInCall) error
+	Fakerun(ctx thrift.Context, call UniqC2FakerunInCall) error
 }
 
 // TChanUniqC2Client is the interface is used to make remote calls.
 type TChanUniqC2Client interface {
 	TChanUniqCClient
 
-	Fakerun(ctx thrift.Context) (*UniqC2FakerunOutCall, error)
+	Fakerun(ctx thrift.Context) (UniqC2FakerunOutCall, error)
 }
 
 // Implementation of a client and service handler.
@@ -67,13 +67,13 @@ func NewTChanUniqCClient(client thrift.TChanStreamingClient) TChanUniqCClient {
 	return newTChanUniqCClient("UniqC", client)
 }
 
-func (c *tchanUniqCClient) Run(ctx thrift.Context) (*UniqCRunOutCall, error) {
+func (c *tchanUniqCClient) Run(ctx thrift.Context) (UniqCRunOutCall, error) {
 	call, writer, err := c.client.StartCall(ctx, "UniqC::run")
 	if err != nil {
 		return nil, err
 	}
 
-	outCall := &UniqCRunOutCall{
+	outCall := &uniqCRunOutCall{
 		c:    c.client,
 		call: call,
 	}
@@ -139,7 +139,7 @@ func (s *tchanUniqCServer) Handle(ctx thrift.Context, methodName string, protoco
 }
 
 func (s *tchanUniqCServer) handleRun(ctx thrift.Context, tcall *tchannel.InboundCall, arg3Reader io.ReadCloser) error {
-	call := &UniqCRunInCall{
+	call := &uniqCRunInCall{
 		c:    s.common,
 		call: tcall,
 		ctx:  ctx,
@@ -165,7 +165,28 @@ func (s *tchanUniqCServer) handleRun(ctx thrift.Context, tcall *tchannel.Inbound
 
 // UniqCRunInCall is the object used to stream arguments and write
 // response headers for incoming calls.
-type UniqCRunInCall struct {
+type UniqCRunInCall interface {
+	// Read returns the next argument, if any is available. If there are no more arguments left,
+	// it will return io.EOF.
+	Read() (*String, error)
+
+	// SetResponseHeaders sets the response headers. This must be called before any
+	// streaming responses are sent.
+	SetResponseHeaders(headers map[string]string) error
+
+	// Write writes a result to the response stream. The written items may not
+	// be sent till Flush or Done is called.
+	Write(arg *SCount) error
+
+	// Flush flushes headers (if they have not yet been sent) and any written results.
+	Flush() error
+
+	// Done closes the response stream and should be called after all results have been written.
+	Done() error
+}
+
+// uniqCRunInCall is the implementation for UniqCRunInCall.
+type uniqCRunInCall struct {
 	c    thrift.TCommon
 	call *tchannel.InboundCall
 	ctx  thrift.Context
@@ -175,9 +196,7 @@ type UniqCRunInCall struct {
 	writer tchannel.ArgWriter
 }
 
-// Read returns the next argument, if any is available. If there are no more
-// arguments left, it will return io.EOF.
-func (c *UniqCRunInCall) Read() (*String, error) {
+func (c *uniqCRunInCall) Read() (*String, error) {
 	var req String
 	if err := c.c.ReadStreamStruct(c.reader, func(protocol athrift.TProtocol) error {
 		return req.Read(protocol)
@@ -188,9 +207,7 @@ func (c *UniqCRunInCall) Read() (*String, error) {
 	return &req, nil
 }
 
-// SetResponseHeaders sets the response headers. This must be called before any
-// streaming responses are sent.
-func (c *UniqCRunInCall) SetResponseHeaders(headers map[string]string) error {
+func (c *uniqCRunInCall) SetResponseHeaders(headers map[string]string) error {
 	if c.writer != nil {
 		// arg3 is already being written, headers must be set first
 		return fmt.Errorf("cannot set headers after writing streaming responses")
@@ -200,7 +217,7 @@ func (c *UniqCRunInCall) SetResponseHeaders(headers map[string]string) error {
 	return nil
 }
 
-func (c *UniqCRunInCall) writeResponseHeaders() error {
+func (c *uniqCRunInCall) writeResponseHeaders() error {
 	if c.writer != nil {
 		// arg3 is already being written, headers must be set first
 		return fmt.Errorf("cannot set headers after writing streaming responses")
@@ -222,7 +239,7 @@ func (c *UniqCRunInCall) writeResponseHeaders() error {
 
 // checkWriter creates the arg3 writer if it has not been created.
 // Before the arg3 writer is created, response headers are sent.
-func (c *UniqCRunInCall) checkWriter() error {
+func (c *uniqCRunInCall) checkWriter() error {
 	if c.writer == nil {
 		if err := c.writeResponseHeaders(); err != nil {
 			return err
@@ -237,9 +254,7 @@ func (c *UniqCRunInCall) checkWriter() error {
 	return nil
 }
 
-// Write writes a result to the response stream. The written items may not
-// be sent till Flush or Done is called.
-func (c *UniqCRunInCall) Write(arg *SCount) error {
+func (c *uniqCRunInCall) Write(arg *SCount) error {
 	if err := c.checkWriter(); err != nil {
 		return err
 	}
@@ -247,7 +262,7 @@ func (c *UniqCRunInCall) Write(arg *SCount) error {
 }
 
 // Flush flushes headers (if they have not yet been sent) and any written results.
-func (c *UniqCRunInCall) Flush() error {
+func (c *uniqCRunInCall) Flush() error {
 	if err := c.checkWriter(); err != nil {
 		return err
 	}
@@ -255,7 +270,7 @@ func (c *UniqCRunInCall) Flush() error {
 }
 
 // Done closes the response stream and should be called after all results have been written.
-func (c *UniqCRunInCall) Done() error {
+func (c *uniqCRunInCall) Done() error {
 	if err := c.checkWriter(); err != nil {
 		return err
 	}
@@ -264,7 +279,28 @@ func (c *UniqCRunInCall) Done() error {
 
 // UniqCRunOutCall is the object used to stream arguments/results and
 // read response headers for outgoing calls.
-type UniqCRunOutCall struct {
+type UniqCRunOutCall interface {
+	// Write writes an argument to the request stream. The written items may not
+	// be sent till Flush or Done is called.
+	Write(arg *String) error
+
+	// Flush flushes all written arguments.
+	Flush() error
+
+	// Done closes the request stream and should be called after all arguments have been written.
+	Done() error
+
+	// Read returns the next result, if any is available. If there are no more
+	// results left, it will return io.EOF.
+	Read() (*SCount, error)
+
+	// ResponseHeaders returns the response headers sent from the server. This will
+	// block until server headers have been received.
+	ResponseHeaders() (map[string]string, error)
+}
+
+// uniqCRunOutCall is the implementation for UniqCRunOutCall.
+type uniqCRunOutCall struct {
 	c               thrift.TCommon
 	call            *tchannel.OutboundCall
 	responseHeaders map[string]string
@@ -274,17 +310,17 @@ type UniqCRunOutCall struct {
 
 // Write writes an argument to the request stream. The written items may not
 // be sent till Flush or Done is called.
-func (c *UniqCRunOutCall) Write(arg *String) error {
+func (c *uniqCRunOutCall) Write(arg *String) error {
 	return c.c.WriteStreamStruct(c.writer, arg)
 }
 
 // Flush flushes all written arguments.
-func (c *UniqCRunOutCall) Flush() error {
+func (c *uniqCRunOutCall) Flush() error {
 	return c.writer.Flush()
 }
 
 // Done closes the request stream and should be called after all arguments have been written.
-func (c *UniqCRunOutCall) Done() error {
+func (c *uniqCRunOutCall) Done() error {
 	if err := c.writer.Close(); err != nil {
 		return err
 	}
@@ -292,7 +328,7 @@ func (c *UniqCRunOutCall) Done() error {
 	return nil
 }
 
-func (c *UniqCRunOutCall) checkReader() error {
+func (c *uniqCRunOutCall) checkReader() error {
 	if c.reader == nil {
 		arg2Reader, err := c.call.Response().Arg2Reader()
 		if err != nil {
@@ -317,9 +353,7 @@ func (c *UniqCRunOutCall) checkReader() error {
 	return nil
 }
 
-// Read returns the next result, if any is available. If there are no more
-// results left, it will return io.EOF.
-func (c *UniqCRunOutCall) Read() (*SCount, error) {
+func (c *uniqCRunOutCall) Read() (*SCount, error) {
 	if err := c.checkReader(); err != nil {
 		return nil, err
 	}
@@ -333,9 +367,7 @@ func (c *UniqCRunOutCall) Read() (*SCount, error) {
 	return &res, nil
 }
 
-// ResponseHeaders returns the response headers sent from the server. This will
-// block until server headers have been received.
-func (c *UniqCRunOutCall) ResponseHeaders() (map[string]string, error) {
+func (c *uniqCRunOutCall) ResponseHeaders() (map[string]string, error) {
 	if err := c.checkReader(); err != nil {
 		return nil, err
 	}
@@ -361,13 +393,13 @@ func NewTChanUniqC2Client(client thrift.TChanStreamingClient) TChanUniqC2Client 
 	return newTChanUniqC2Client("UniqC2", client)
 }
 
-func (c *tchanUniqC2Client) Fakerun(ctx thrift.Context) (*UniqC2FakerunOutCall, error) {
+func (c *tchanUniqC2Client) Fakerun(ctx thrift.Context) (UniqC2FakerunOutCall, error) {
 	call, writer, err := c.client.StartCall(ctx, "UniqC2::fakerun")
 	if err != nil {
 		return nil, err
 	}
 
-	outCall := &UniqC2FakerunOutCall{
+	outCall := &uniqC2FakerunOutCall{
 		c:    c.client,
 		call: call,
 	}
@@ -439,7 +471,7 @@ func (s *tchanUniqC2Server) Handle(ctx thrift.Context, methodName string, protoc
 }
 
 func (s *tchanUniqC2Server) handleFakerun(ctx thrift.Context, tcall *tchannel.InboundCall, arg3Reader io.ReadCloser) error {
-	call := &UniqC2FakerunInCall{
+	call := &uniqC2FakerunInCall{
 		c:    s.common,
 		call: tcall,
 		ctx:  ctx,
@@ -465,7 +497,28 @@ func (s *tchanUniqC2Server) handleFakerun(ctx thrift.Context, tcall *tchannel.In
 
 // UniqC2FakerunInCall is the object used to stream arguments and write
 // response headers for incoming calls.
-type UniqC2FakerunInCall struct {
+type UniqC2FakerunInCall interface {
+	// Read returns the next argument, if any is available. If there are no more arguments left,
+	// it will return io.EOF.
+	Read() (*String, error)
+
+	// SetResponseHeaders sets the response headers. This must be called before any
+	// streaming responses are sent.
+	SetResponseHeaders(headers map[string]string) error
+
+	// Write writes a result to the response stream. The written items may not
+	// be sent till Flush or Done is called.
+	Write(arg *SCount) error
+
+	// Flush flushes headers (if they have not yet been sent) and any written results.
+	Flush() error
+
+	// Done closes the response stream and should be called after all results have been written.
+	Done() error
+}
+
+// uniqC2FakerunInCall is the implementation for UniqC2FakerunInCall.
+type uniqC2FakerunInCall struct {
 	c    thrift.TCommon
 	call *tchannel.InboundCall
 	ctx  thrift.Context
@@ -475,9 +528,7 @@ type UniqC2FakerunInCall struct {
 	writer tchannel.ArgWriter
 }
 
-// Read returns the next argument, if any is available. If there are no more
-// arguments left, it will return io.EOF.
-func (c *UniqC2FakerunInCall) Read() (*String, error) {
+func (c *uniqC2FakerunInCall) Read() (*String, error) {
 	var req String
 	if err := c.c.ReadStreamStruct(c.reader, func(protocol athrift.TProtocol) error {
 		return req.Read(protocol)
@@ -488,9 +539,7 @@ func (c *UniqC2FakerunInCall) Read() (*String, error) {
 	return &req, nil
 }
 
-// SetResponseHeaders sets the response headers. This must be called before any
-// streaming responses are sent.
-func (c *UniqC2FakerunInCall) SetResponseHeaders(headers map[string]string) error {
+func (c *uniqC2FakerunInCall) SetResponseHeaders(headers map[string]string) error {
 	if c.writer != nil {
 		// arg3 is already being written, headers must be set first
 		return fmt.Errorf("cannot set headers after writing streaming responses")
@@ -500,7 +549,7 @@ func (c *UniqC2FakerunInCall) SetResponseHeaders(headers map[string]string) erro
 	return nil
 }
 
-func (c *UniqC2FakerunInCall) writeResponseHeaders() error {
+func (c *uniqC2FakerunInCall) writeResponseHeaders() error {
 	if c.writer != nil {
 		// arg3 is already being written, headers must be set first
 		return fmt.Errorf("cannot set headers after writing streaming responses")
@@ -522,7 +571,7 @@ func (c *UniqC2FakerunInCall) writeResponseHeaders() error {
 
 // checkWriter creates the arg3 writer if it has not been created.
 // Before the arg3 writer is created, response headers are sent.
-func (c *UniqC2FakerunInCall) checkWriter() error {
+func (c *uniqC2FakerunInCall) checkWriter() error {
 	if c.writer == nil {
 		if err := c.writeResponseHeaders(); err != nil {
 			return err
@@ -537,9 +586,7 @@ func (c *UniqC2FakerunInCall) checkWriter() error {
 	return nil
 }
 
-// Write writes a result to the response stream. The written items may not
-// be sent till Flush or Done is called.
-func (c *UniqC2FakerunInCall) Write(arg *SCount) error {
+func (c *uniqC2FakerunInCall) Write(arg *SCount) error {
 	if err := c.checkWriter(); err != nil {
 		return err
 	}
@@ -547,7 +594,7 @@ func (c *UniqC2FakerunInCall) Write(arg *SCount) error {
 }
 
 // Flush flushes headers (if they have not yet been sent) and any written results.
-func (c *UniqC2FakerunInCall) Flush() error {
+func (c *uniqC2FakerunInCall) Flush() error {
 	if err := c.checkWriter(); err != nil {
 		return err
 	}
@@ -555,7 +602,7 @@ func (c *UniqC2FakerunInCall) Flush() error {
 }
 
 // Done closes the response stream and should be called after all results have been written.
-func (c *UniqC2FakerunInCall) Done() error {
+func (c *uniqC2FakerunInCall) Done() error {
 	if err := c.checkWriter(); err != nil {
 		return err
 	}
@@ -564,7 +611,28 @@ func (c *UniqC2FakerunInCall) Done() error {
 
 // UniqC2FakerunOutCall is the object used to stream arguments/results and
 // read response headers for outgoing calls.
-type UniqC2FakerunOutCall struct {
+type UniqC2FakerunOutCall interface {
+	// Write writes an argument to the request stream. The written items may not
+	// be sent till Flush or Done is called.
+	Write(arg *String) error
+
+	// Flush flushes all written arguments.
+	Flush() error
+
+	// Done closes the request stream and should be called after all arguments have been written.
+	Done() error
+
+	// Read returns the next result, if any is available. If there are no more
+	// results left, it will return io.EOF.
+	Read() (*SCount, error)
+
+	// ResponseHeaders returns the response headers sent from the server. This will
+	// block until server headers have been received.
+	ResponseHeaders() (map[string]string, error)
+}
+
+// uniqC2FakerunOutCall is the implementation for UniqC2FakerunOutCall.
+type uniqC2FakerunOutCall struct {
 	c               thrift.TCommon
 	call            *tchannel.OutboundCall
 	responseHeaders map[string]string
@@ -574,17 +642,17 @@ type UniqC2FakerunOutCall struct {
 
 // Write writes an argument to the request stream. The written items may not
 // be sent till Flush or Done is called.
-func (c *UniqC2FakerunOutCall) Write(arg *String) error {
+func (c *uniqC2FakerunOutCall) Write(arg *String) error {
 	return c.c.WriteStreamStruct(c.writer, arg)
 }
 
 // Flush flushes all written arguments.
-func (c *UniqC2FakerunOutCall) Flush() error {
+func (c *uniqC2FakerunOutCall) Flush() error {
 	return c.writer.Flush()
 }
 
 // Done closes the request stream and should be called after all arguments have been written.
-func (c *UniqC2FakerunOutCall) Done() error {
+func (c *uniqC2FakerunOutCall) Done() error {
 	if err := c.writer.Close(); err != nil {
 		return err
 	}
@@ -592,7 +660,7 @@ func (c *UniqC2FakerunOutCall) Done() error {
 	return nil
 }
 
-func (c *UniqC2FakerunOutCall) checkReader() error {
+func (c *uniqC2FakerunOutCall) checkReader() error {
 	if c.reader == nil {
 		arg2Reader, err := c.call.Response().Arg2Reader()
 		if err != nil {
@@ -617,9 +685,7 @@ func (c *UniqC2FakerunOutCall) checkReader() error {
 	return nil
 }
 
-// Read returns the next result, if any is available. If there are no more
-// results left, it will return io.EOF.
-func (c *UniqC2FakerunOutCall) Read() (*SCount, error) {
+func (c *uniqC2FakerunOutCall) Read() (*SCount, error) {
 	if err := c.checkReader(); err != nil {
 		return nil, err
 	}
@@ -633,9 +699,7 @@ func (c *UniqC2FakerunOutCall) Read() (*SCount, error) {
 	return &res, nil
 }
 
-// ResponseHeaders returns the response headers sent from the server. This will
-// block until server headers have been received.
-func (c *UniqC2FakerunOutCall) ResponseHeaders() (map[string]string, error) {
+func (c *uniqC2FakerunOutCall) ResponseHeaders() (map[string]string, error) {
 	if err := c.checkReader(); err != nil {
 		return nil, err
 	}

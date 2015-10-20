@@ -22,14 +22,14 @@ type TChanTestStream interface {
 
 // TChanTestStreamServer is the interface that must be implemented by a handler.
 type TChanTestStreamServer interface {
-	BothStream(ctx thrift.Context, call *TestStreamBothStreamInCall) error
-	OutStream(ctx thrift.Context, prefix string, call *TestStreamOutStreamInCall) error
+	BothStream(ctx thrift.Context, call TestStreamBothStreamInCall) error
+	OutStream(ctx thrift.Context, prefix string, call TestStreamOutStreamInCall) error
 }
 
 // TChanTestStreamClient is the interface is used to make remote calls.
 type TChanTestStreamClient interface {
-	BothStream(ctx thrift.Context) (*TestStreamBothStreamOutCall, error)
-	OutStream(ctx thrift.Context, prefix string) (*TestStreamOutStreamOutCall, error)
+	BothStream(ctx thrift.Context) (TestStreamBothStreamOutCall, error)
+	OutStream(ctx thrift.Context, prefix string) (TestStreamOutStreamOutCall, error)
 }
 
 // TChanTestStream2 is the interface containing non-streaming methods.
@@ -41,14 +41,14 @@ type TChanTestStream2 interface {
 type TChanTestStream2Server interface {
 	TChanTestStreamServer
 
-	OutStream2(ctx thrift.Context, prefix string, call *TestStream2OutStream2InCall) error
+	OutStream2(ctx thrift.Context, prefix string, call TestStream2OutStream2InCall) error
 }
 
 // TChanTestStream2Client is the interface is used to make remote calls.
 type TChanTestStream2Client interface {
 	TChanTestStreamClient
 
-	OutStream2(ctx thrift.Context, prefix string) (*TestStream2OutStream2OutCall, error)
+	OutStream2(ctx thrift.Context, prefix string) (TestStream2OutStream2OutCall, error)
 }
 
 // Implementation of a client and service handler.
@@ -69,13 +69,13 @@ func NewTChanTestStreamClient(client thrift.TChanStreamingClient) TChanTestStrea
 	return newTChanTestStreamClient("TestStream", client)
 }
 
-func (c *tchanTestStreamClient) BothStream(ctx thrift.Context) (*TestStreamBothStreamOutCall, error) {
+func (c *tchanTestStreamClient) BothStream(ctx thrift.Context) (TestStreamBothStreamOutCall, error) {
 	call, writer, err := c.client.StartCall(ctx, "TestStream::BothStream")
 	if err != nil {
 		return nil, err
 	}
 
-	outCall := &TestStreamBothStreamOutCall{
+	outCall := &testStreamBothStreamOutCall{
 		c:    c.client,
 		call: call,
 	}
@@ -85,13 +85,13 @@ func (c *tchanTestStreamClient) BothStream(ctx thrift.Context) (*TestStreamBothS
 	return outCall, nil
 }
 
-func (c *tchanTestStreamClient) OutStream(ctx thrift.Context, prefix string) (*TestStreamOutStreamOutCall, error) {
+func (c *tchanTestStreamClient) OutStream(ctx thrift.Context, prefix string) (TestStreamOutStreamOutCall, error) {
 	call, writer, err := c.client.StartCall(ctx, "TestStream::OutStream")
 	if err != nil {
 		return nil, err
 	}
 
-	outCall := &TestStreamOutStreamOutCall{
+	outCall := &testStreamOutStreamOutCall{
 		c:    c.client,
 		call: call,
 	}
@@ -165,7 +165,7 @@ func (s *tchanTestStreamServer) Handle(ctx thrift.Context, methodName string, pr
 }
 
 func (s *tchanTestStreamServer) handleBothStream(ctx thrift.Context, tcall *tchannel.InboundCall, arg3Reader io.ReadCloser) error {
-	call := &TestStreamBothStreamInCall{
+	call := &testStreamBothStreamInCall{
 		c:    s.common,
 		call: tcall,
 		ctx:  ctx,
@@ -190,7 +190,7 @@ func (s *tchanTestStreamServer) handleBothStream(ctx thrift.Context, tcall *tcha
 }
 
 func (s *tchanTestStreamServer) handleOutStream(ctx thrift.Context, tcall *tchannel.InboundCall, arg3Reader io.ReadCloser) error {
-	call := &TestStreamOutStreamInCall{
+	call := &testStreamOutStreamInCall{
 		c:    s.common,
 		call: tcall,
 		ctx:  ctx,
@@ -221,7 +221,28 @@ func (s *tchanTestStreamServer) handleOutStream(ctx thrift.Context, tcall *tchan
 
 // TestStreamBothStreamInCall is the object used to stream arguments and write
 // response headers for incoming calls.
-type TestStreamBothStreamInCall struct {
+type TestStreamBothStreamInCall interface {
+	// Read returns the next argument, if any is available. If there are no more arguments left,
+	// it will return io.EOF.
+	Read() (*SString, error)
+
+	// SetResponseHeaders sets the response headers. This must be called before any
+	// streaming responses are sent.
+	SetResponseHeaders(headers map[string]string) error
+
+	// Write writes a result to the response stream. The written items may not
+	// be sent till Flush or Done is called.
+	Write(arg *SString) error
+
+	// Flush flushes headers (if they have not yet been sent) and any written results.
+	Flush() error
+
+	// Done closes the response stream and should be called after all results have been written.
+	Done() error
+}
+
+// testStreamBothStreamInCall is the implementation for TestStreamBothStreamInCall.
+type testStreamBothStreamInCall struct {
 	c    thrift.TCommon
 	call *tchannel.InboundCall
 	ctx  thrift.Context
@@ -231,9 +252,7 @@ type TestStreamBothStreamInCall struct {
 	writer tchannel.ArgWriter
 }
 
-// Read returns the next argument, if any is available. If there are no more
-// arguments left, it will return io.EOF.
-func (c *TestStreamBothStreamInCall) Read() (*SString, error) {
+func (c *testStreamBothStreamInCall) Read() (*SString, error) {
 	var req SString
 	if err := c.c.ReadStreamStruct(c.reader, func(protocol athrift.TProtocol) error {
 		return req.Read(protocol)
@@ -244,9 +263,7 @@ func (c *TestStreamBothStreamInCall) Read() (*SString, error) {
 	return &req, nil
 }
 
-// SetResponseHeaders sets the response headers. This must be called before any
-// streaming responses are sent.
-func (c *TestStreamBothStreamInCall) SetResponseHeaders(headers map[string]string) error {
+func (c *testStreamBothStreamInCall) SetResponseHeaders(headers map[string]string) error {
 	if c.writer != nil {
 		// arg3 is already being written, headers must be set first
 		return fmt.Errorf("cannot set headers after writing streaming responses")
@@ -256,7 +273,7 @@ func (c *TestStreamBothStreamInCall) SetResponseHeaders(headers map[string]strin
 	return nil
 }
 
-func (c *TestStreamBothStreamInCall) writeResponseHeaders() error {
+func (c *testStreamBothStreamInCall) writeResponseHeaders() error {
 	if c.writer != nil {
 		// arg3 is already being written, headers must be set first
 		return fmt.Errorf("cannot set headers after writing streaming responses")
@@ -278,7 +295,7 @@ func (c *TestStreamBothStreamInCall) writeResponseHeaders() error {
 
 // checkWriter creates the arg3 writer if it has not been created.
 // Before the arg3 writer is created, response headers are sent.
-func (c *TestStreamBothStreamInCall) checkWriter() error {
+func (c *testStreamBothStreamInCall) checkWriter() error {
 	if c.writer == nil {
 		if err := c.writeResponseHeaders(); err != nil {
 			return err
@@ -293,9 +310,7 @@ func (c *TestStreamBothStreamInCall) checkWriter() error {
 	return nil
 }
 
-// Write writes a result to the response stream. The written items may not
-// be sent till Flush or Done is called.
-func (c *TestStreamBothStreamInCall) Write(arg *SString) error {
+func (c *testStreamBothStreamInCall) Write(arg *SString) error {
 	if err := c.checkWriter(); err != nil {
 		return err
 	}
@@ -303,7 +318,7 @@ func (c *TestStreamBothStreamInCall) Write(arg *SString) error {
 }
 
 // Flush flushes headers (if they have not yet been sent) and any written results.
-func (c *TestStreamBothStreamInCall) Flush() error {
+func (c *testStreamBothStreamInCall) Flush() error {
 	if err := c.checkWriter(); err != nil {
 		return err
 	}
@@ -311,7 +326,7 @@ func (c *TestStreamBothStreamInCall) Flush() error {
 }
 
 // Done closes the response stream and should be called after all results have been written.
-func (c *TestStreamBothStreamInCall) Done() error {
+func (c *testStreamBothStreamInCall) Done() error {
 	if err := c.checkWriter(); err != nil {
 		return err
 	}
@@ -320,7 +335,28 @@ func (c *TestStreamBothStreamInCall) Done() error {
 
 // TestStreamBothStreamOutCall is the object used to stream arguments/results and
 // read response headers for outgoing calls.
-type TestStreamBothStreamOutCall struct {
+type TestStreamBothStreamOutCall interface {
+	// Write writes an argument to the request stream. The written items may not
+	// be sent till Flush or Done is called.
+	Write(arg *SString) error
+
+	// Flush flushes all written arguments.
+	Flush() error
+
+	// Done closes the request stream and should be called after all arguments have been written.
+	Done() error
+
+	// Read returns the next result, if any is available. If there are no more
+	// results left, it will return io.EOF.
+	Read() (*SString, error)
+
+	// ResponseHeaders returns the response headers sent from the server. This will
+	// block until server headers have been received.
+	ResponseHeaders() (map[string]string, error)
+}
+
+// testStreamBothStreamOutCall is the implementation for TestStreamBothStreamOutCall.
+type testStreamBothStreamOutCall struct {
 	c               thrift.TCommon
 	call            *tchannel.OutboundCall
 	responseHeaders map[string]string
@@ -330,17 +366,17 @@ type TestStreamBothStreamOutCall struct {
 
 // Write writes an argument to the request stream. The written items may not
 // be sent till Flush or Done is called.
-func (c *TestStreamBothStreamOutCall) Write(arg *SString) error {
+func (c *testStreamBothStreamOutCall) Write(arg *SString) error {
 	return c.c.WriteStreamStruct(c.writer, arg)
 }
 
 // Flush flushes all written arguments.
-func (c *TestStreamBothStreamOutCall) Flush() error {
+func (c *testStreamBothStreamOutCall) Flush() error {
 	return c.writer.Flush()
 }
 
 // Done closes the request stream and should be called after all arguments have been written.
-func (c *TestStreamBothStreamOutCall) Done() error {
+func (c *testStreamBothStreamOutCall) Done() error {
 	if err := c.writer.Close(); err != nil {
 		return err
 	}
@@ -348,7 +384,7 @@ func (c *TestStreamBothStreamOutCall) Done() error {
 	return nil
 }
 
-func (c *TestStreamBothStreamOutCall) checkReader() error {
+func (c *testStreamBothStreamOutCall) checkReader() error {
 	if c.reader == nil {
 		arg2Reader, err := c.call.Response().Arg2Reader()
 		if err != nil {
@@ -373,9 +409,7 @@ func (c *TestStreamBothStreamOutCall) checkReader() error {
 	return nil
 }
 
-// Read returns the next result, if any is available. If there are no more
-// results left, it will return io.EOF.
-func (c *TestStreamBothStreamOutCall) Read() (*SString, error) {
+func (c *testStreamBothStreamOutCall) Read() (*SString, error) {
 	if err := c.checkReader(); err != nil {
 		return nil, err
 	}
@@ -389,9 +423,7 @@ func (c *TestStreamBothStreamOutCall) Read() (*SString, error) {
 	return &res, nil
 }
 
-// ResponseHeaders returns the response headers sent from the server. This will
-// block until server headers have been received.
-func (c *TestStreamBothStreamOutCall) ResponseHeaders() (map[string]string, error) {
+func (c *testStreamBothStreamOutCall) ResponseHeaders() (map[string]string, error) {
 	if err := c.checkReader(); err != nil {
 		return nil, err
 	}
@@ -400,7 +432,25 @@ func (c *TestStreamBothStreamOutCall) ResponseHeaders() (map[string]string, erro
 
 // TestStreamOutStreamInCall is the object used to stream arguments and write
 // response headers for incoming calls.
-type TestStreamOutStreamInCall struct {
+type TestStreamOutStreamInCall interface {
+
+	// SetResponseHeaders sets the response headers. This must be called before any
+	// streaming responses are sent.
+	SetResponseHeaders(headers map[string]string) error
+
+	// Write writes a result to the response stream. The written items may not
+	// be sent till Flush or Done is called.
+	Write(arg *SString) error
+
+	// Flush flushes headers (if they have not yet been sent) and any written results.
+	Flush() error
+
+	// Done closes the response stream and should be called after all results have been written.
+	Done() error
+}
+
+// testStreamOutStreamInCall is the implementation for TestStreamOutStreamInCall.
+type testStreamOutStreamInCall struct {
 	c    thrift.TCommon
 	call *tchannel.InboundCall
 	ctx  thrift.Context
@@ -408,9 +458,7 @@ type TestStreamOutStreamInCall struct {
 	writer tchannel.ArgWriter
 }
 
-// SetResponseHeaders sets the response headers. This must be called before any
-// streaming responses are sent.
-func (c *TestStreamOutStreamInCall) SetResponseHeaders(headers map[string]string) error {
+func (c *testStreamOutStreamInCall) SetResponseHeaders(headers map[string]string) error {
 	if c.writer != nil {
 		// arg3 is already being written, headers must be set first
 		return fmt.Errorf("cannot set headers after writing streaming responses")
@@ -420,7 +468,7 @@ func (c *TestStreamOutStreamInCall) SetResponseHeaders(headers map[string]string
 	return nil
 }
 
-func (c *TestStreamOutStreamInCall) writeResponseHeaders() error {
+func (c *testStreamOutStreamInCall) writeResponseHeaders() error {
 	if c.writer != nil {
 		// arg3 is already being written, headers must be set first
 		return fmt.Errorf("cannot set headers after writing streaming responses")
@@ -442,7 +490,7 @@ func (c *TestStreamOutStreamInCall) writeResponseHeaders() error {
 
 // checkWriter creates the arg3 writer if it has not been created.
 // Before the arg3 writer is created, response headers are sent.
-func (c *TestStreamOutStreamInCall) checkWriter() error {
+func (c *testStreamOutStreamInCall) checkWriter() error {
 	if c.writer == nil {
 		if err := c.writeResponseHeaders(); err != nil {
 			return err
@@ -457,9 +505,7 @@ func (c *TestStreamOutStreamInCall) checkWriter() error {
 	return nil
 }
 
-// Write writes a result to the response stream. The written items may not
-// be sent till Flush or Done is called.
-func (c *TestStreamOutStreamInCall) Write(arg *SString) error {
+func (c *testStreamOutStreamInCall) Write(arg *SString) error {
 	if err := c.checkWriter(); err != nil {
 		return err
 	}
@@ -467,7 +513,7 @@ func (c *TestStreamOutStreamInCall) Write(arg *SString) error {
 }
 
 // Flush flushes headers (if they have not yet been sent) and any written results.
-func (c *TestStreamOutStreamInCall) Flush() error {
+func (c *testStreamOutStreamInCall) Flush() error {
 	if err := c.checkWriter(); err != nil {
 		return err
 	}
@@ -475,7 +521,7 @@ func (c *TestStreamOutStreamInCall) Flush() error {
 }
 
 // Done closes the response stream and should be called after all results have been written.
-func (c *TestStreamOutStreamInCall) Done() error {
+func (c *testStreamOutStreamInCall) Done() error {
 	if err := c.checkWriter(); err != nil {
 		return err
 	}
@@ -484,14 +530,26 @@ func (c *TestStreamOutStreamInCall) Done() error {
 
 // TestStreamOutStreamOutCall is the object used to stream arguments/results and
 // read response headers for outgoing calls.
-type TestStreamOutStreamOutCall struct {
+type TestStreamOutStreamOutCall interface {
+
+	// Read returns the next result, if any is available. If there are no more
+	// results left, it will return io.EOF.
+	Read() (*SString, error)
+
+	// ResponseHeaders returns the response headers sent from the server. This will
+	// block until server headers have been received.
+	ResponseHeaders() (map[string]string, error)
+}
+
+// testStreamOutStreamOutCall is the implementation for TestStreamOutStreamOutCall.
+type testStreamOutStreamOutCall struct {
 	c               thrift.TCommon
 	call            *tchannel.OutboundCall
 	responseHeaders map[string]string
 	reader          io.ReadCloser
 }
 
-func (c *TestStreamOutStreamOutCall) checkReader() error {
+func (c *testStreamOutStreamOutCall) checkReader() error {
 	if c.reader == nil {
 		arg2Reader, err := c.call.Response().Arg2Reader()
 		if err != nil {
@@ -516,9 +574,7 @@ func (c *TestStreamOutStreamOutCall) checkReader() error {
 	return nil
 }
 
-// Read returns the next result, if any is available. If there are no more
-// results left, it will return io.EOF.
-func (c *TestStreamOutStreamOutCall) Read() (*SString, error) {
+func (c *testStreamOutStreamOutCall) Read() (*SString, error) {
 	if err := c.checkReader(); err != nil {
 		return nil, err
 	}
@@ -532,9 +588,7 @@ func (c *TestStreamOutStreamOutCall) Read() (*SString, error) {
 	return &res, nil
 }
 
-// ResponseHeaders returns the response headers sent from the server. This will
-// block until server headers have been received.
-func (c *TestStreamOutStreamOutCall) ResponseHeaders() (map[string]string, error) {
+func (c *testStreamOutStreamOutCall) ResponseHeaders() (map[string]string, error) {
 	if err := c.checkReader(); err != nil {
 		return nil, err
 	}
@@ -560,13 +614,13 @@ func NewTChanTestStream2Client(client thrift.TChanStreamingClient) TChanTestStre
 	return newTChanTestStream2Client("TestStream2", client)
 }
 
-func (c *tchanTestStream2Client) OutStream2(ctx thrift.Context, prefix string) (*TestStream2OutStream2OutCall, error) {
+func (c *tchanTestStream2Client) OutStream2(ctx thrift.Context, prefix string) (TestStream2OutStream2OutCall, error) {
 	call, writer, err := c.client.StartCall(ctx, "TestStream2::OutStream2")
 	if err != nil {
 		return nil, err
 	}
 
-	outCall := &TestStream2OutStream2OutCall{
+	outCall := &testStream2OutStream2OutCall{
 		c:    c.client,
 		call: call,
 	}
@@ -644,7 +698,7 @@ func (s *tchanTestStream2Server) Handle(ctx thrift.Context, methodName string, p
 }
 
 func (s *tchanTestStream2Server) handleOutStream2(ctx thrift.Context, tcall *tchannel.InboundCall, arg3Reader io.ReadCloser) error {
-	call := &TestStream2OutStream2InCall{
+	call := &testStream2OutStream2InCall{
 		c:    s.common,
 		call: tcall,
 		ctx:  ctx,
@@ -675,7 +729,25 @@ func (s *tchanTestStream2Server) handleOutStream2(ctx thrift.Context, tcall *tch
 
 // TestStream2OutStream2InCall is the object used to stream arguments and write
 // response headers for incoming calls.
-type TestStream2OutStream2InCall struct {
+type TestStream2OutStream2InCall interface {
+
+	// SetResponseHeaders sets the response headers. This must be called before any
+	// streaming responses are sent.
+	SetResponseHeaders(headers map[string]string) error
+
+	// Write writes a result to the response stream. The written items may not
+	// be sent till Flush or Done is called.
+	Write(arg *SString) error
+
+	// Flush flushes headers (if they have not yet been sent) and any written results.
+	Flush() error
+
+	// Done closes the response stream and should be called after all results have been written.
+	Done() error
+}
+
+// testStream2OutStream2InCall is the implementation for TestStream2OutStream2InCall.
+type testStream2OutStream2InCall struct {
 	c    thrift.TCommon
 	call *tchannel.InboundCall
 	ctx  thrift.Context
@@ -683,9 +755,7 @@ type TestStream2OutStream2InCall struct {
 	writer tchannel.ArgWriter
 }
 
-// SetResponseHeaders sets the response headers. This must be called before any
-// streaming responses are sent.
-func (c *TestStream2OutStream2InCall) SetResponseHeaders(headers map[string]string) error {
+func (c *testStream2OutStream2InCall) SetResponseHeaders(headers map[string]string) error {
 	if c.writer != nil {
 		// arg3 is already being written, headers must be set first
 		return fmt.Errorf("cannot set headers after writing streaming responses")
@@ -695,7 +765,7 @@ func (c *TestStream2OutStream2InCall) SetResponseHeaders(headers map[string]stri
 	return nil
 }
 
-func (c *TestStream2OutStream2InCall) writeResponseHeaders() error {
+func (c *testStream2OutStream2InCall) writeResponseHeaders() error {
 	if c.writer != nil {
 		// arg3 is already being written, headers must be set first
 		return fmt.Errorf("cannot set headers after writing streaming responses")
@@ -717,7 +787,7 @@ func (c *TestStream2OutStream2InCall) writeResponseHeaders() error {
 
 // checkWriter creates the arg3 writer if it has not been created.
 // Before the arg3 writer is created, response headers are sent.
-func (c *TestStream2OutStream2InCall) checkWriter() error {
+func (c *testStream2OutStream2InCall) checkWriter() error {
 	if c.writer == nil {
 		if err := c.writeResponseHeaders(); err != nil {
 			return err
@@ -732,9 +802,7 @@ func (c *TestStream2OutStream2InCall) checkWriter() error {
 	return nil
 }
 
-// Write writes a result to the response stream. The written items may not
-// be sent till Flush or Done is called.
-func (c *TestStream2OutStream2InCall) Write(arg *SString) error {
+func (c *testStream2OutStream2InCall) Write(arg *SString) error {
 	if err := c.checkWriter(); err != nil {
 		return err
 	}
@@ -742,7 +810,7 @@ func (c *TestStream2OutStream2InCall) Write(arg *SString) error {
 }
 
 // Flush flushes headers (if they have not yet been sent) and any written results.
-func (c *TestStream2OutStream2InCall) Flush() error {
+func (c *testStream2OutStream2InCall) Flush() error {
 	if err := c.checkWriter(); err != nil {
 		return err
 	}
@@ -750,7 +818,7 @@ func (c *TestStream2OutStream2InCall) Flush() error {
 }
 
 // Done closes the response stream and should be called after all results have been written.
-func (c *TestStream2OutStream2InCall) Done() error {
+func (c *testStream2OutStream2InCall) Done() error {
 	if err := c.checkWriter(); err != nil {
 		return err
 	}
@@ -759,14 +827,26 @@ func (c *TestStream2OutStream2InCall) Done() error {
 
 // TestStream2OutStream2OutCall is the object used to stream arguments/results and
 // read response headers for outgoing calls.
-type TestStream2OutStream2OutCall struct {
+type TestStream2OutStream2OutCall interface {
+
+	// Read returns the next result, if any is available. If there are no more
+	// results left, it will return io.EOF.
+	Read() (*SString, error)
+
+	// ResponseHeaders returns the response headers sent from the server. This will
+	// block until server headers have been received.
+	ResponseHeaders() (map[string]string, error)
+}
+
+// testStream2OutStream2OutCall is the implementation for TestStream2OutStream2OutCall.
+type testStream2OutStream2OutCall struct {
 	c               thrift.TCommon
 	call            *tchannel.OutboundCall
 	responseHeaders map[string]string
 	reader          io.ReadCloser
 }
 
-func (c *TestStream2OutStream2OutCall) checkReader() error {
+func (c *testStream2OutStream2OutCall) checkReader() error {
 	if c.reader == nil {
 		arg2Reader, err := c.call.Response().Arg2Reader()
 		if err != nil {
@@ -791,9 +871,7 @@ func (c *TestStream2OutStream2OutCall) checkReader() error {
 	return nil
 }
 
-// Read returns the next result, if any is available. If there are no more
-// results left, it will return io.EOF.
-func (c *TestStream2OutStream2OutCall) Read() (*SString, error) {
+func (c *testStream2OutStream2OutCall) Read() (*SString, error) {
 	if err := c.checkReader(); err != nil {
 		return nil, err
 	}
@@ -807,9 +885,7 @@ func (c *TestStream2OutStream2OutCall) Read() (*SString, error) {
 	return &res, nil
 }
 
-// ResponseHeaders returns the response headers sent from the server. This will
-// block until server headers have been received.
-func (c *TestStream2OutStream2OutCall) ResponseHeaders() (map[string]string, error) {
+func (c *testStream2OutStream2OutCall) ResponseHeaders() (map[string]string, error) {
 	if err := c.checkReader(); err != nil {
 		return nil, err
 	}

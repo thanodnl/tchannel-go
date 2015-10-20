@@ -96,7 +96,7 @@ func runClient(hostPort string) error {
 
 type handler struct{}
 
-func (handler) BothStream(ctx thrift.Context, call *stream.TestStreamBothStreamInCall) error {
+func (handler) BothStream(ctx thrift.Context, call stream.TestStreamBothStreamInCall) error {
 	counter := 0
 
 	for {
@@ -127,7 +127,7 @@ func (handler) BothStream(ctx thrift.Context, call *stream.TestStreamBothStreamI
 	return nil
 }
 
-func (handler) OutStream(ctx thrift.Context, prefix string, call *stream.TestStreamOutStreamInCall) error {
+func (handler) OutStream(ctx thrift.Context, prefix string, call stream.TestStreamOutStreamInCall) error {
 	for i := 0; i < 100; i++ {
 		time.Sleep(10 * time.Millisecond)
 		s := &stream.SString{fmt.Sprintf("out stram with prefix %v: %v", prefix, i)}
