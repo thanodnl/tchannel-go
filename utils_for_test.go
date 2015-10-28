@@ -23,7 +23,10 @@ package tchannel
 // This file contains functions for tests to access internal tchannel state.
 // Since it has a _test.go suffix, it is only compiled with tests in this package.
 
-import "net"
+import (
+	"net"
+	"time"
+)
 
 // MexChannelBufferSize is the size of the message exchange channel buffer.
 const MexChannelBufferSize = mexChannelBufferSize
@@ -53,4 +56,27 @@ func InboundConnection(call IncomingCall) (*Connection, net.Conn) {
 // NewSpan returns a Span for testing.
 func NewSpan(traceID uint64, parentID uint64, spanID uint64) Span {
 	return Span{traceID: traceID, parentID: parentID, spanID: spanID, flags: defaultTracingFlags}
+}
+
+// GetTimeNow returns the variable pointing to time.Now for stubbing.
+func GetTimeNow() *func() time.Time {
+	return &timeNow
+}
+
+func (l *PeerList) GetHeap() *PeerHeap {
+	return l.peerHeap
+}
+
+func GetPendingRequests(p *Peer) int {
+	count := 0
+	for _, c := range p.outboundConnections {
+		count = count + len(c.inbound.exchanges)
+		count = count + len(c.outbound.exchanges)
+	}
+
+	for _, c := range p.inboundConnections {
+		count = count + len(c.inbound.exchanges)
+		count = count + len(c.outbound.exchanges)
+	}
+	return count
 }
