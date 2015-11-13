@@ -32,6 +32,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/GaryBoone/GoStats/stats"
 	. "github.com/uber/tchannel-go"
 
 	"github.com/kr/pretty"
@@ -313,6 +314,12 @@ func testDistribution(t *testing.T, counts map[string]int, min, max float64) {
 			t.Errorf("Key %v has value %v which is out of range %v-%v", k, v, min, max)
 		}
 	}
+
+	cc := make([]float64, 0)
+	for _, y := range counts {
+		cc = append(cc, float64(y))
+	}
+	fmt.Printf("standard dev %+v\n", stats.StatsPopulationStandardDeviation(cc))
 }
 
 type peerSelectionTest struct {
@@ -438,7 +445,7 @@ func (pt *peerSelectionTest) validate() {
 	pretty.Print(pt.peerCounter)
 }
 
-func TestConcurrentPeerSelectionBatched(t *testing.T) {
+func ConcurrentPeerSelectionBatched(t *testing.T) {
 	if testing.Short() {
 		t.Skipf("Skipping slow test")
 	}
@@ -470,7 +477,7 @@ func TestConcurrentPeerSelectionBatched(t *testing.T) {
 	pt.validate()
 }
 
-func TestConcurrentPeerSelectionSaturated(t *testing.T) {
+func ConcurrentPeerSelectionSaturated(t *testing.T) {
 	if testing.Short() {
 		t.Skipf("Skipping slow test")
 	}
@@ -493,4 +500,139 @@ func TestConcurrentPeerSelectionSaturated(t *testing.T) {
 	pt.setupClient()
 	pt.runSaturated(concurrency)
 	pt.validate()
+}
+
+// Heap has
+
+// p1, p2, p..... p100. all have score of 0.
+
+// pop p1, increment score to 1. then push to heap.
+// p100, p2, p3 ..... p99, p1 [1].
+// p1 has a request made.
+// request completes, p1's score is updated to 0.
+// p100, p2, p3, ..... p1 [0]
+// pop . swaps p100 and p1.
+// p1, p2, p3 .... p100 [1].
+
+// p1, p2 ... p100
+// pop: p100, p2 .... p1 -> sift down -> p2, p3, p4 ... p100, p1
+// p1, p3, .... p100, p2. -> p3 ... p100, p1, p2
+
+func PeersHeapPerf(t *testing.T) {
+	const numHyperbahn = 1080
+	const numAffinity = 90
+	var err error
+	var wg sync.WaitGroup
+	hyperbahns := make([]*Channel, numHyperbahn)
+	for i := range hyperbahns {
+		wg.Add(1)
+		go func(i int) {
+			defer wg.Done()
+			hyperbahns[i], err = testutils.NewServer(&testutils.ChannelOpts{ServiceName: "hyperbahn"})
+			require.NoError(t, err, "NewServer failed")
+
+			testutils.RegisterFunc(t, hyperbahns[i], "echo", func(_ context.Context, args *raw.Args) (*raw.Res, error) {
+				// Sleep for a random amount of time.
+				// r := rand.Intn(int(5 * time.Millisecond))
+				// time.Sleep(time.Duration(r))
+				return &raw.Res{}, nil
+			})
+		}(i)
+	}
+	wg.Wait()
+	fmt.Println("all hyperbahn nodes setup")
+
+	affinity := make([]*Channel, numAffinity)
+	for i := range affinity {
+		affinity[i] = hyperbahns[i*3]
+	}
+
+	server, err := testutils.NewServer(nil)
+	require.NoError(t, err, "NewServer failed")
+	for _, hyperbahn := range hyperbahns {
+		server.Peers().Add(hyperbahn.PeerInfo().HostPort)
+	}
+	fmt.Println("added all hyperbahn nodes")
+
+	// Connect from the affinity nodes to the service.
+	ctx, cancel := NewContext(time.Second)
+	defer cancel()
+	for _, affinity := range affinity {
+		require.NoError(t, affinity.Ping(ctx, server.PeerInfo().HostPort), "affinity ping failed")
+		go func(affinity *Channel) {
+			// Affinity node will make lots of requests.
+			for {
+				sc := affinity.GetSubChannel(server.PeerInfo().ServiceName)
+				ctx, cancel := NewContext(time.Second)
+				raw.CallSC(ctx, sc, "echo", nil, nil)
+				cancel()
+				time.Sleep(time.Millisecond)
+			}
+		}(affinity)
+	}
+	fmt.Println("affinity nodes connected")
+
+	// concurrency
+	const numConcurrent = 2
+	const numRequests = 30000
+
+	// clock will count up in "millis"
+
+	// helper that will make a request every n ticks.
+	reqEveryNTicks := func(n int, clock <-chan struct{}) {
+		defer wg.Done()
+
+		sc := server.GetSubChannel("hyperbahn")
+		for {
+			for i := 0; i < n; i++ {
+				_, ok := <-clock
+				if !ok {
+					return
+				}
+			}
+			ctx, cancel := NewContext(time.Second)
+			_, _, _, err := raw.CallSC(ctx, sc, "echo", nil, nil)
+			cancel()
+			assert.NoError(t, err, "CallSC failed")
+		}
+	}
+
+	clocks := make([]chan struct{}, 4)
+	for i := 0; i < 4; i++ {
+		clocks[i] = make(chan struct{})
+	}
+
+	wg.Add(4)
+	go reqEveryNTicks(1, clocks[0])
+	go reqEveryNTicks(1, clocks[1])
+	go reqEveryNTicks(5, clocks[2])
+	go reqEveryNTicks(5, clocks[3])
+
+	tickAllClocks := func() {
+		for i := 0; i < 4; i++ {
+			clocks[i] <- struct{}{}
+		}
+	}
+
+	const numTicks = 10000
+	for i := 0; i < numTicks; i++ {
+		if i%10000 == 0 {
+			fmt.Println("upto", i, (100.0 * float64(i) / numTicks))
+		}
+		tickAllClocks()
+	}
+	for i := 0; i < 4; i++ {
+		close(clocks[i])
+	}
+	wg.Wait()
+
+	state := server.IntrospectState(&IntrospectionOptions{IncludeEmptyPeers: true})
+	for _, peer := range state.Peers {
+		p, ok := state.RootPeers[peer]
+		if !ok {
+			fmt.Printf("%v: missing\n", peer)
+		} else {
+			fmt.Printf("%v: %v\n", p.HostPort, p.ChosenCount)
+		}
+	}
 }
