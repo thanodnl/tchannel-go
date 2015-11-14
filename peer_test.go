@@ -37,7 +37,6 @@ import (
 
 	"github.com/kr/pretty"
 	"github.com/stretchr/testify/assert"
-
 	"github.com/stretchr/testify/require"
 
 	"github.com/uber/tchannel-go/raw"
@@ -112,7 +111,6 @@ func TestGetPeerAvoidPrevSelected(t *testing.T) {
 			t.Errorf("Got unexpected error selecting peer: %v", err)
 			continue
 		}
-
 		got := gotPeer.HostPort()
 		if _, ok := tt.expected[got]; !ok {
 			t.Errorf("Got unexpected peer, expected one of %v got %v\n  Peers = %v PrevSelected = %v",
@@ -234,9 +232,8 @@ type peerTest struct {
 }
 
 // NewService will return a new server channel and the host port.
-func (pt *peerTest) NewService(svcName string) (*Channel, string) {
-	ch, err := testutils.NewServer(&testutils.ChannelOpts{ServiceName: svcName})
-	require.NoError(pt.t, err, "NewServer failed")
+func (pt *peerTest) NewService(t *testing.T, svcName string) (*Channel, string) {
+	ch := testutils.NewServer(t, &testutils.ChannelOpts{ServiceName: svcName})
 	pt.channels = append(pt.channels, ch)
 	return ch, ch.PeerInfo().HostPort
 }
@@ -251,7 +248,6 @@ func (pt *peerTest) CleanUp() {
 func TestPeerSelection(t *testing.T) {
 	pt := &peerTest{t: t}
 	defer pt.CleanUp()
-
 	WithVerifiedServer(t, &testutils.ChannelOpts{ServiceName: "S1"}, func(ch *Channel, hostPort string) {
 		doPing := func(ch *Channel) {
 			ctx, cancel := NewContext(time.Second)
@@ -260,8 +256,9 @@ func TestPeerSelection(t *testing.T) {
 		}
 
 		strategy, count := createScoreStrategy(0, 1)
-		s2, _ := pt.NewService("S2")
+		s2, _ := pt.NewService(t, "S2")
 		s2.GetSubChannel("S1").Peers().SetStrategy(strategy)
+		s2.GetSubChannel("S1").Peers().Add(hostPort)
 		doPing(s2)
 		assert.EqualValues(t, 1+2, *count, "Expect exchange update from init resp, ping, pong")
 	})
@@ -269,7 +266,7 @@ func TestPeerSelection(t *testing.T) {
 
 func TestIsolatedPeerHeap(t *testing.T) {
 	const numPeers = 10
-	ch, _ := testutils.NewClient(nil)
+	ch := testutils.NewClient(t, nil)
 
 	ps1 := createSubChannelWNewStrategy(ch, "S1", numPeers, 1)
 	ps2 := createSubChannelWNewStrategy(ch, "S1", numPeers, -1, Isolated)
@@ -315,7 +312,7 @@ func testDistribution(t *testing.T, counts map[string]int, min, max float64) {
 		}
 	}
 
-	cc := make([]float64, 0)
+	var cc []float64
 	for _, y := range counts {
 		cc = append(cc, float64(y))
 	}
@@ -338,13 +335,13 @@ type peerSelectionTest struct {
 }
 
 // setupServers will create numPeer servers, and register handlers on them.
-func (pt *peerSelectionTest) setupServers() {
+func (pt *peerSelectionTest) setupServers(t *testing.T) {
 	pt.servers = make([]*Channel, pt.numPeers)
 
 	// Set up numPeers servers.
 	for i := 0; i < pt.numPeers; i++ {
 		var hostPort string
-		pt.servers[i], hostPort = pt.NewService("server")
+		pt.servers[i], hostPort = pt.NewService(t, "server")
 		pt.servers[i].Register(raw.Wrap(newTestHandler(pt.t)), "echo")
 		testutils.RegisterFunc(pt.t, pt.servers[i], "hostport", func(ctx context.Context, args *raw.Args) (*raw.Res, error) {
 			pt.onHandler()
@@ -356,8 +353,8 @@ func (pt *peerSelectionTest) setupServers() {
 	}
 }
 
-func (pt *peerSelectionTest) setupClient() {
-	pt.client, _ = testutils.NewClient(nil)
+func (pt *peerSelectionTest) setupClient(t *testing.T) {
+	pt.client = testutils.NewClient(t, nil)
 	clientSub := pt.client.GetSubChannel("server")
 
 	strategy := ScoreCalculatorFunc(func(p *Peer) uint64 {
@@ -469,8 +466,8 @@ func ConcurrentPeerSelectionBatched(t *testing.T) {
 	}
 	defer pt.CleanUp()
 
-	pt.setupServers()
-	pt.setupClient()
+	pt.setupServers(t)
+	pt.setupClient(t)
 	pt.runBatch(numLoops, func() {
 		handlerWG.Add(numCalls)
 	})
@@ -496,8 +493,8 @@ func ConcurrentPeerSelectionSaturated(t *testing.T) {
 	}
 	defer pt.CleanUp()
 
-	pt.setupServers()
-	pt.setupClient()
+	pt.setupServers(t)
+	pt.setupClient(t)
 	pt.runSaturated(concurrency)
 	pt.validate()
 }
@@ -528,9 +525,7 @@ func PeersHeapPerf(t *testing.T) {
 		wg.Add(1)
 		go func(i int) {
 			defer wg.Done()
-			hyperbahns[i], err = testutils.NewServer(&testutils.ChannelOpts{ServiceName: "hyperbahn"})
-			require.NoError(t, err, "NewServer failed")
-
+			hyperbahns[i] = testutils.NewServer(t, &testutils.ChannelOpts{ServiceName: "hyperbahn"})
 			testutils.RegisterFunc(t, hyperbahns[i], "echo", func(_ context.Context, args *raw.Args) (*raw.Res, error) {
 				// Sleep for a random amount of time.
 				// r := rand.Intn(int(5 * time.Millisecond))
@@ -547,7 +542,8 @@ func PeersHeapPerf(t *testing.T) {
 		affinity[i] = hyperbahns[i*3]
 	}
 
-	server, err := testutils.NewServer(nil)
+	server := testutils.NewServer(t, nil)
+	server.Register(raw.Wrap(newTestHandler(t)), "echo")
 	require.NoError(t, err, "NewServer failed")
 	for _, hyperbahn := range hyperbahns {
 		server.Peers().Add(hyperbahn.PeerInfo().HostPort)
@@ -555,16 +551,15 @@ func PeersHeapPerf(t *testing.T) {
 	fmt.Println("added all hyperbahn nodes")
 
 	// Connect from the affinity nodes to the service.
-	ctx, cancel := NewContext(time.Second)
-	defer cancel()
 	for _, affinity := range affinity {
-		require.NoError(t, affinity.Ping(ctx, server.PeerInfo().HostPort), "affinity ping failed")
+		affinity.Peers().Add(server.PeerInfo().HostPort)
 		go func(affinity *Channel) {
 			// Affinity node will make lots of requests.
 			for {
 				sc := affinity.GetSubChannel(server.PeerInfo().ServiceName)
 				ctx, cancel := NewContext(time.Second)
-				raw.CallSC(ctx, sc, "echo", nil, nil)
+				_, _, _, err := raw.CallSC(ctx, sc, "echo", nil, nil)
+				assert.NoError(t, err, "CallSC failed")
 				cancel()
 				time.Sleep(time.Millisecond)
 			}
