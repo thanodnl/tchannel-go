@@ -260,7 +260,7 @@ func TestPeerSelection(t *testing.T) {
 		s2.GetSubChannel("S1").Peers().SetStrategy(strategy)
 		s2.GetSubChannel("S1").Peers().Add(hostPort)
 		doPing(s2)
-		assert.EqualValues(t, 1+2, *count, "Expect exchange update from init resp, ping, pong")
+		assert.EqualValues(t, 4, *count, "Expect exchange update from init resp, ping, pong")
 	})
 }
 
