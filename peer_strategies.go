@@ -48,13 +48,11 @@ func newZeroCalculator() zeroCalculator {
 type preferIncomingCalculator struct{}
 
 func (preferIncomingCalculator) GetScore(p *Peer) uint64 {
-	p.mut.RLock()
 	if p.NumInbound() <= 0 {
-		p.mut.RUnlock()
 		return math.MaxUint64
 	}
 	count := 0
-
+	p.mut.RLock()
 	for _, c := range p.outboundConnections {
 		c.outbound.mut.RLock()
 		count = count + len(c.outbound.exchanges)
@@ -71,6 +69,9 @@ func (preferIncomingCalculator) GetScore(p *Peer) uint64 {
 	return uint64(count)
 }
 
+// newPreferIncomingCalculator calculates the score for peers. It prefers
+// peers who have incoming connections and choose based on the least pending
+// outbound calls. The less number of outbound calls, the smaller score the peer has.
 func newPreferIncomingCalculator() preferIncomingCalculator {
 	return preferIncomingCalculator{}
 }

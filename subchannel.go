@@ -95,6 +95,8 @@ func (c *SubChannel) Peers() *PeerList {
 
 // Isolated returns whether this subchannel is an isolated subchannel.
 func (c *SubChannel) Isolated() bool {
+	c.RLock()
+	defer c.RUnlock()
 	return c.topChannel.Peers() != c.peers
 }
 
@@ -167,11 +169,11 @@ func (subChMap *subChannelMap) getOrAdd(serviceName string, ch *Channel) *SubCha
 func (subChMap *subChannelMap) updatePeerHeap(p *Peer) {
 	subChMap.mut.RLock()
 	for _, subCh := range subChMap.subchannels {
-		subCh.RLock()
 		if subCh.Isolated() {
+			subCh.RLock()
 			subCh.Peers().UpdatePeerHeap(p)
+			subCh.RUnlock()
 		}
-		subCh.RUnlock()
 	}
 	subChMap.mut.RUnlock()
 }
