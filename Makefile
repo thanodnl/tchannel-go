@@ -6,6 +6,9 @@ PKGS := . ./json ./hyperbahn ./thrift ./typed ./trace $(EXAMPLES)
 TEST_PKGS_NOPREFIX := $(shell go list ./... | sed -e 's/^.*uber\/tchannel-go//')
 TEST_PKGS := $(addprefix github.com/uber/tchannel-go,$(TEST_PKGS_NOPREFIX))
 BUILD := ./build
+RELEASE := ./release
+RELEASE_LINUX := $(RELEASE)/linux-x86_64
+RELEASE_DARWIN := $(RELEASE)/darwin-x86_64
 SRCS := $(foreach pkg,$(PKGS),$(wildcard $(pkg)/*.go))
 export GOPATH = $(GODEPS):$(OLDGOPATH)
 export PATH := $(realpath ./scripts/travis/thrift-release/linux-x86_64):$(PATH)
@@ -19,6 +22,8 @@ all: test examples
 setup:
 	mkdir -p $(BUILD)
 	mkdir -p $(BUILD)/examples
+	mkdir -p $(RELEASE_LINUX)
+	mkdir -p $(RELEASE_DARWIN)
 
 get_thrift:
 	scripts/travis/get-thrift.sh
@@ -36,6 +41,7 @@ clean:
 	echo Cleaning build artifacts...
 	go clean
 	rm -rf $(BUILD)
+	rm -rf $(RELEASE)
 	echo
 
 fmt format:
@@ -93,6 +99,13 @@ thrift_gen:
 	$(BUILD)/thrift-gen --generateThrift --inputFile examples/thrift/test.thrift --outputDir examples/thrift/gen-go
 	$(BUILD)/thrift-gen --generateThrift --inputFile hyperbahn/hyperbahn.thrift --outputDir hyperbahn/gen-go
 	rm -rf trace/thrift/gen-go/tcollector && $(BUILD)/thrift-gen --generateThrift --inputFile trace/tcollector.thrift --outputDir trace/thrift/gen-go/
+
+release_thrift_gen: clean setup
+	GOOS=linux GOARCH=amd64 godep go build -o $(RELEASE_LINUX)/thrift-gen ./thrift/thrift-gen
+	GOOS=darwin GOARCH=amd64 godep go build -o $(RELEASE_DARWIN)/thrift-gen ./thrift/thrift-gen
+	tar -czf thrift-gen.tar.gz $(RELEASE)
+	mv thrift-gen.tar.gz $(RELEASE)/
+
 
 .PHONY: all help clean fmt format get_thrift install install_ci test test_ci vet
 .SILENT: all help clean fmt format test vet
