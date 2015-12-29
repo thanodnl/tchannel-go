@@ -6,9 +6,9 @@ PKGS := . ./json ./hyperbahn ./thrift ./typed ./trace $(EXAMPLES)
 TEST_PKGS_NOPREFIX := $(shell go list ./... | sed -e 's/^.*uber\/tchannel-go//')
 TEST_PKGS := $(addprefix github.com/uber/tchannel-go,$(TEST_PKGS_NOPREFIX))
 BUILD := ./build
-RELEASE := ./release
-RELEASE_LINUX := $(RELEASE)/linux-x86_64
-RELEASE_DARWIN := $(RELEASE)/darwin-x86_64
+THRIFT_GEN_RELEASE := ./thrift-gen-release
+THRIFT_GEN_RELEASE_LINUX := $(THRIFT_GEN_RELEASE)/linux-x86_64
+THRIFT_GEN_RELEASE_DARWIN := $(THRIFT_GEN_RELEASE)/darwin-x86_64
 SRCS := $(foreach pkg,$(PKGS),$(wildcard $(pkg)/*.go))
 export GOPATH = $(GODEPS):$(OLDGOPATH)
 export PATH := $(realpath ./scripts/travis/thrift-release/linux-x86_64):$(PATH)
@@ -22,8 +22,8 @@ all: test examples
 setup:
 	mkdir -p $(BUILD)
 	mkdir -p $(BUILD)/examples
-	mkdir -p $(RELEASE_LINUX)
-	mkdir -p $(RELEASE_DARWIN)
+	mkdir -p $(THRIFT_GEN_RELEASE_LINUX)
+	mkdir -p $(THRIFT_GEN_RELEASE_DARWIN)
 
 get_thrift:
 	scripts/travis/get-thrift.sh
@@ -40,8 +40,7 @@ help:
 clean:
 	echo Cleaning build artifacts...
 	go clean
-	rm -rf $(BUILD)
-	rm -rf $(RELEASE)
+	rm -rf $(BUILD) $(THRIFT_GEN_RELEASE)
 	echo
 
 fmt format:
@@ -101,11 +100,11 @@ thrift_gen:
 	rm -rf trace/thrift/gen-go/tcollector && $(BUILD)/thrift-gen --generateThrift --inputFile trace/tcollector.thrift --outputDir trace/thrift/gen-go/
 
 release_thrift_gen: clean setup
-	GOOS=linux GOARCH=amd64 godep go build -o $(RELEASE_LINUX)/thrift-gen ./thrift/thrift-gen
-	GOOS=darwin GOARCH=amd64 godep go build -o $(RELEASE_DARWIN)/thrift-gen ./thrift/thrift-gen
-	tar -czf thrift-gen.tar.gz $(RELEASE)
-	mv thrift-gen.tar.gz $(RELEASE)/
+	GOOS=linux GOARCH=amd64 godep go build -o $(THRIFT_GEN_RELEASE_LINUX)/thrift-gen ./thrift/thrift-gen
+	GOOS=darwin GOARCH=amd64 godep go build -o $(THRIFT_GEN_RELEASE_DARWIN)/thrift-gen ./thrift/thrift-gen
+	tar -czf thrift-gen-release.tar.gz $(THRIFT_GEN_RELEASE)
+	mv thrift-gen-release.tar.gz $(THRIFT_GEN_RELEASE)/
 
 
-.PHONY: all help clean fmt format get_thrift install install_ci test test_ci vet
+.PHONY: all help clean fmt format get_thrift install install_ci release_thrift_gen test test_ci vet
 .SILENT: all help clean fmt format test vet
